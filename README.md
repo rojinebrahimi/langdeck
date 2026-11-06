@@ -125,23 +125,17 @@ helm install langdeck oci://registry-1.docker.io/rojinebrahimi/langdeck \
 The secret holds `database-url` and `oidc-client-secret`. See the
 [chart values](deploy/helm/langdeck/values.yaml) and the [production checklist](docs/security.md#production-checklist).
 
-### Live demo on Render
-
-Try the hosted demo at **https://langdeck-demo.onrender.com** (sign in with any email; the free
-instance may take ~30 s to wake up), or deploy your own copy:
-
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rojinebrahimi/langdeck)
-
-One click deploys LangDeck plus the demo agent on Render's free plan using
-[`render.yaml`](render.yaml). The demo uses dev sign-in (any email) and in-memory data that
-resets when the instance sleeps, so never put real data in it.
-
 ### Other ways to run
 
 ```bash
 docker run -p 8080:8080 rojinebrahimi/langdeck:latest          # in-memory, admin / admin
 make build && ./bin/langdeck serve                             # single static binary
 ```
+
+Prefer to look before you install? **[langdeck-demo.onrender.com](https://langdeck-demo.onrender.com)**
+runs the demo agent on a free instance (sign in with any email; may take ~30 s to wake up).
+It is demo-only — dev sign-in, no persistence — so don't put real data there.
+(Its blueprint lives in [`render.yaml`](render.yaml) if you want a throwaway instance.)
 
 ## Architecture
 
