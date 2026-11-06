@@ -15,6 +15,7 @@ import { APIKeysPage } from "./pages/APIKeys";
 import { UsersPage } from "./pages/Users";
 import { AuditPage } from "./pages/Audit";
 import { ForcedPasswordChangePage } from "./pages/ChangePassword";
+import { GuidePage } from "./pages/Guide";
 
 export function App() {
   const location = useLocation();
@@ -37,6 +38,7 @@ export function App() {
         <Route path="/runs" element={<RunsPage />} />
         <Route path="/runs/:id" element={<RunDetailPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />
+        <Route path="/guide" element={<GuidePage />} />
         <Route path="/settings/api-keys" element={<APIKeysPage />} />
         <Route path="/settings/users" element={<UsersPage />} />
         <Route path="/settings/audit" element={<AuditPage />} />

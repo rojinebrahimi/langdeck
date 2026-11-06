@@ -2,7 +2,7 @@ import { useState, type ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 import clsx from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
-import { Bot, Hand, KeyRound, LayoutDashboard, Lock, LogOut, Menu, PlayCircle, ScrollText, Users, X } from "lucide-react";
+import { BookOpen, Bot, Hand, KeyRound, LayoutDashboard, Lock, LogOut, Menu, PlayCircle, ScrollText, Users, X } from "lucide-react";
 import { useInterrupts, useLiveUpdates, useMe } from "../api/hooks";
 import { api } from "../api/client";
 import { Can, Modal } from "./ui";
@@ -14,6 +14,7 @@ const nav = [
   { to: "/agents", label: "Agents", icon: Bot },
   { to: "/runs", label: "Runs", icon: PlayCircle },
   { to: "/approvals", label: "Approvals", icon: Hand, badge: true },
+  { to: "/guide", label: "User guide", icon: BookOpen },
 ];
 const admin = [
   { to: "/settings/api-keys", label: "API keys", icon: KeyRound },

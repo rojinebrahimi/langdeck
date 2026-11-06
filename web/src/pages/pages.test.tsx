@@ -6,6 +6,7 @@ import { ApprovalsPage } from "./Approvals";
 import { APIKeysPage } from "./APIKeys";
 import { ChangePasswordForm } from "./ChangePassword";
 import { AgentsPage } from "./Agents";
+import { GuidePage } from "./Guide";
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -110,5 +111,16 @@ describe("AgentsPage", () => {
     expect(screen.getByText("online")).toBeInTheDocument();
     expect(screen.getByText("3 instances")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /support-bot/ })).toHaveAttribute("href", "/agents/a1");
+  });
+});
+
+describe("GuidePage", () => {
+  it("walks through connecting an agent and links the repo guide", () => {
+    renderPage(<GuidePage />);
+    expect(screen.getByRole("heading", { name: /connect an agent/i })).toBeInTheDocument();
+    expect(screen.getByText(/deck\.instrument\(builder\.compile\(\)\)/)).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: /roles, keys and accounts/i })).toBeInTheDocument();
+    const link = screen.getByRole("link", { name: /full guide/i });
+    expect(link).toHaveAttribute("href", expect.stringContaining("docs/user-guide.md"));
   });
 });
