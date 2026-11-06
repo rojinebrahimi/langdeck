@@ -113,7 +113,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <button className="rounded-lg p-1.5 text-ink-200 hover:bg-ink-800 lg:hidden" onClick={() => setOpen(!open)} aria-label="Toggle menu">
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
-          <Link to="/" aria-label="LangDeck home" title="LangDeck home" className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-ink-800">
+          <Link to="/" aria-label="LangDeck home" title="LangDeck home" className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-ink-800 lg:hidden">
             <img src="/logo.svg" alt="" className="h-6 w-6" />
             <span className="text-sm font-semibold tracking-tight text-white">LangDeck</span>
           </Link>
