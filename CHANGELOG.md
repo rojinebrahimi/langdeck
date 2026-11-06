@@ -5,11 +5,13 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
-## [0.1.0] - 2026-11-06
+## [0.1.1] - 2026-11-06
 
 The first public release of LangDeck, a self-hosted control plane for LangGraph agents.
+`0.1.0` shipped container images only; `0.1.1` is the first full release, with binaries and the
+Helm chart.
 
-**Try it:** `docker run -p 8080:8080 rojinebrahimi/langdeck:0.1.0`, then sign in as
+**Try it:** `docker run -p 8080:8080 rojinebrahimi/langdeck:0.1.1`, then sign in as
 `admin` / `admin` (you will be asked to change the password). There's also a
 [live demo](https://langdeck-demo.onrender.com) where any email signs in.
 
@@ -75,11 +77,22 @@ The first public release of LangDeck, a self-hosted control plane for LangGraph 
 - Docker Compose stack with a demo agent, and a Render blueprint for a throwaway demo.
 - Static binaries for Linux, macOS and Windows attached to this release.
 
+**Release pipeline** (fixed since 0.1.0)
+- The Helm chart is published to `oci://ghcr.io/rojinebrahimi/charts/langdeck` instead of the
+  image repository, where it would have overwritten the image's version tag.
+- The Docker Hub overview sync can no longer block a release, and syncs a Docker Hub-ready page.
+
 **Docs and project**
 - Architecture, configuration, HTTP API, security and user guides.
 - Contribution guide, CLA with a signature bot, code of conduct and security policy.
 - CI: Go tests with race detection against real PostgreSQL, UI and SDK tests, an end-to-end test,
   golangci-lint, CodeQL, govulncheck, Trivy and Helm validation.
 
-[Unreleased]: https://github.com/rojinebrahimi/langdeck/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/rojinebrahimi/langdeck/releases/tag/v0.1.0
+## [0.1.0] - 2026-11-06
+
+Container images only (`rojinebrahimi/langdeck:0.1.0`). The release pipeline stopped before
+publishing the GitHub release and Helm chart; see 0.1.1, which contains the same features.
+
+[Unreleased]: https://github.com/rojinebrahimi/langdeck/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/rojinebrahimi/langdeck/releases/tag/v0.1.1
+[0.1.0]: https://github.com/rojinebrahimi/langdeck/compare/49e2b3f...v0.1.0
