@@ -1,0 +1,46 @@
+# Local stack: LangDeck + PostgreSQL + a demo LangGraph agent.
+#   docker compose up --build
+#   open http://localhost:8080 and sign in as admin / admin (you will be asked to
+#   choose a new password). Never reuse these credentials outside your machine.
+name: langdeck
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: langdeck
+      POSTGRES_PASSWORD: langdeck
+      POSTGRES_DB: langdeck
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U langdeck"]
+      interval: 5s
+      retries: 10
+
+  langdeck:
+    build: .
+    image: langdeck/langdeck:local
+    depends_on:
+      postgres: { condition: service_healthy }
+    ports: ["8080:8080"]
+    environment:
+      LANGDECK_DATABASE_URL: postgres://langdeck:langdeck@postgres:5432/langdeck?sslmode=disable
+      LANGDECK_PUBLIC_URL: http://localhost:8080
+      LANGDECK_AUTH_MODE: local # default admin / admin, changed at first sign-in
+      LANGDECK_LOG_FORMAT: text
+      # Pre-shared agent key so the demo agent can connect before anyone opens the UI.
+      LANGDECK_BOOTSTRAP_AGENT_KEY: ldk_local-demo-key-change-me-0000000000000
+
+  demo-agent:
+    build:
+      context: .
+      dockerfile: examples/python-agent/Dockerfile
+    depends_on: [langdeck]
+    restart: unless-stopped
+    environment:
+      LANGDECK_URL: http://langdeck:8080
+      LANGDECK_API_KEY: ldk_local-demo-key-change-me-0000000000000
+      DEMO_TRAFFIC_EVERY_S: "20"
+
+volumes:
+  pgdata:

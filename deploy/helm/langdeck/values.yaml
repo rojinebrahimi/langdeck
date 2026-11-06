@@ -1,0 +1,129 @@
+# Default values for LangDeck.
+
+replicaCount: 2
+
+image:
+  repository: docker.io/rojinebrahimi/langdeck
+  tag: ""            # defaults to .Chart.AppVersion
+  pullPolicy: IfNotPresent
+imagePullSecrets: []
+
+nameOverride: ""
+fullnameOverride: ""
+
+# Public URL users reach LangDeck at. Used for OIDC redirects and secure cookies.
+publicURL: https://langdeck.example.com
+
+env: production        # production enables strict config validation
+logLevel: info
+
+auth:
+  mode: oidc           # oidc | local (username/password) | dev (rejected when env=production)
+  local:
+    adminUsername: admin
+    # The initial admin password comes from the secret (key: admin-password);
+    # without it the default "admin" is used and must be changed at first sign-in.
+    forcePasswordChange: true
+  oidc:
+    issuer: ""         # e.g. https://keycloak.example.com/realms/main
+    clientID: langdeck
+    # clientSecret is read from the secret below (key: oidc-client-secret)
+    scopes: "openid,profile,email"
+    groupsClaim: groups
+    adminGroups: ""    # comma-separated IdP groups mapped to LangDeck roles
+    operatorGroups: ""
+    viewerGroups: ""
+  defaultRole: viewer
+  bootstrapAdmins: ""  # comma-separated verified emails that become admin on login
+  allowedEmailDomains: ""
+  sessionTTL: 12h
+
+# Secrets. Prefer existingSecret (managed by External Secrets, Sealed Secrets, Vault...).
+# The secret must contain: database-url, and optionally oidc-client-secret,
+# bootstrap-agent-key and admin-password.
+existingSecret: ""
+secrets:
+  databaseURL: ""
+  oidcClientSecret: ""
+  bootstrapAgentKey: ""
+  adminPassword: ""
+
+retentionDays: 30
+trustProxyHeaders: true   # set false if no ingress/proxy sits in front
+extraEnv: []
+
+# Throwaway in-cluster PostgreSQL for evaluation. Use a managed database in production.
+postgresql:
+  enabled: false
+  image: postgres:17-alpine
+  username: langdeck
+  password: ""          # required when enabled
+  database: langdeck
+  storage: 8Gi
+  storageClass: ""
+
+service:
+  type: ClusterIP
+  port: 80
+  metricsPort: 9090
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+    # Long-polls and the live stream need generous timeouts:
+    # nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    # nginx.ingress.kubernetes.io/proxy-buffering: "off"
+  hosts:
+    - host: langdeck.example.com
+      paths: [{ path: /, pathType: Prefix }]
+  tls: []
+
+resources:
+  requests: { cpu: 100m, memory: 128Mi }
+  limits: { memory: 512Mi }
+
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 6
+  targetCPUUtilizationPercentage: 70
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+networkPolicy:
+  enabled: false
+  # Namespaces allowed to reach the HTTP port (ingress controller, agents).
+  ingressFrom: []
+  #  - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: ingress-nginx } }
+
+serviceMonitor:
+  enabled: false
+  interval: 30s
+  labels: {}
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+topologySpreadConstraints: []
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 65532
+  runAsGroup: 65532
+  fsGroup: 65532
+  seccompProfile: { type: RuntimeDefault }
+
+securityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities: { drop: [ALL] }

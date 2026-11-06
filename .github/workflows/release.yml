@@ -1,0 +1,161 @@
+# Publishes the container image to Docker Hub (and GHCR), signs it, and
+# pushes the Helm chart as an OCI artifact.
+#
+#   push to main  -> :edge and :sha-<short>
+#   tag vX.Y.Z    -> :X.Y.Z, :X.Y, :latest, Helm chart X.Y.Z, GitHub release
+#
+# Required repository secrets:
+#   DOCKERHUB_USERNAME  Docker Hub user or org that owns the repository
+#   DOCKERHUB_TOKEN     Docker Hub access token (Account settings -> Personal access tokens, read/write)
+# Optional repository variable:
+#   DOCKERHUB_REPOSITORY  defaults to <DOCKERHUB_USERNAME>/langdeck
+name: Release
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*.*.*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  image:
+    name: Build, push and sign image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write # keyless cosign signing
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    env:
+      DOCKERHUB_REPO: ${{ vars.DOCKERHUB_REPOSITORY || format('{0}/langdeck', secrets.DOCKERHUB_USERNAME) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            docker.io/${{ env.DOCKERHUB_REPO }}
+            ghcr.io/${{ github.repository }}
+          tags: |
+            type=edge,branch=main
+            type=sha,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+      - id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+      - id: build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/amd64,linux/arm64
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.version.outputs.value }}
+            COMMIT=${{ github.sha }}
+          provenance: mode=max
+          sbom: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - uses: sigstore/cosign-installer@v3
+      - name: Sign image (keyless, Sigstore)
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          for tag in $TAGS; do cosign sign --yes "${tag%%:*}@${DIGEST}"; done
+      - name: Update Docker Hub description
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: peter-evans/dockerhub-description@v4
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+          repository: ${{ env.DOCKERHUB_REPO }}
+          short-description: Open-source control plane for LangGraph agents
+          readme-filepath: ./README.md
+
+  chart:
+    name: Publish Helm chart
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: image
+    runs-on: ubuntu-latest
+    env:
+      DOCKERHUB_NS: ${{ secrets.DOCKERHUB_USERNAME }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: azure/setup-helm@v4
+      - name: Package and push chart to Docker Hub (OCI)
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          echo "${{ secrets.DOCKERHUB_TOKEN }}" | helm registry login registry-1.docker.io -u "$DOCKERHUB_NS" --password-stdin
+          helm package deploy/helm/langdeck --version "$V" --app-version "$V"
+          helm push "langdeck-$V.tgz" "oci://registry-1.docker.io/$DOCKERHUB_NS"
+
+  github-release:
+    name: GitHub release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version: "1.26.x" # always the newest patch release, for stdlib security fixes
+          check-latest: true
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+      - name: Build binaries
+        run: |
+          (cd web && npm ci --no-audit --no-fund && npm run build)
+          V="${GITHUB_REF_NAME#v}"
+          for os in linux darwin windows; do for arch in amd64 arm64; do
+            ext=""; [ "$os" = windows ] && ext=".exe"
+            CGO_ENABLED=0 GOOS=$os GOARCH=$arch go build -trimpath \
+              -ldflags "-s -w -X main.version=$V -X main.commit=${GITHUB_SHA::7}" \
+              -o "dist/langdeck_${V}_${os}_${arch}${ext}" ./cmd/langdeck
+          done; done
+          (cd dist && sha256sum * > checksums.txt)
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
+          generate_release_notes: true
+
+  pypi:
+    name: Publish Python SDK
+    # Enable by setting repository variable PUBLISH_PYPI=true and configuring
+    # PyPI trusted publishing for this workflow (no API token needed).
+    if: startsWith(github.ref, 'refs/tags/v') && vars.PUBLISH_PYPI == 'true'
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - run: pip install build && python -m build sdk/python
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: sdk/python/dist

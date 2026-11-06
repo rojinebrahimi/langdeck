@@ -1,0 +1,192 @@
+import { useState } from "react";
+import { useNavigate, useParams } from "react-router-dom";
+import { Pause, Play, Rocket, Save, Trash2 } from "lucide-react";
+import { useAction, useAgent, useAgentCommands, useAgentConfigs, useRuns } from "../api/hooks";
+import { api } from "../api/client";
+import type { Run } from "../api/types";
+import { GraphView } from "../components/GraphView";
+import { RunsTable } from "../components/RunsTable";
+import { Can, ErrorBox, JsonView, Loading, Modal, PageHeader, StatusBadge, Tabs, useCan } from "../components/ui";
+import { pretty, timeAgo } from "../lib/format";
+
+type Tab = "graph" | "runs" | "config" | "commands";
+
+function parseJSON(text: string): { ok: true; value: unknown } | { ok: false; error: string } {
+  try {
+    return { ok: true, value: text.trim() ? JSON.parse(text) : {} };
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+}
+
+function StartRunModal({ agentId, open, onClose }: { agentId: string; open: boolean; onClose: () => void }) {
+  const nav = useNavigate();
+  const [input, setInput] = useState('{\n  "messages": [{"role": "user", "content": "Hello"}]\n}');
+  const [thread, setThread] = useState("");
+  const start = useAction((body: { input: unknown; thread_id: string }) =>
+    api<{ run: Run; warning?: string }>(`/api/v1/agents/${agentId}/runs`, { method: "POST", body }),
+  );
+  const parsed = parseJSON(input);
+  return (
+    <Modal open={open} onClose={onClose} title="Start a run">
+      <form
+        className="space-y-4"
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (!parsed.ok) return;
+          start.mutate({ input: parsed.value, thread_id: thread }, { onSuccess: (r) => nav(`/runs/${r.run.id}`) });
+        }}
+      >
+        <div>
+          <label className="label" htmlFor="run-input">Input (JSON)</label>
+          <textarea id="run-input" rows={8} className="input font-mono text-xs" value={input} onChange={(e) => setInput(e.target.value)} />
+          {!parsed.ok && <p className="mt-1 text-xs text-rose-300">{parsed.error}</p>}
+        </div>
+        <div>
+          <label className="label" htmlFor="thread">Thread id (optional)</label>
+          <input id="thread" className="input" placeholder="conversation-42" value={thread} onChange={(e) => setThread(e.target.value)} />
+        </div>
+        <ErrorBox error={start.error} />
+        <div className="flex justify-end gap-2">
+          <button type="button" className="btn-ghost" onClick={onClose}>Cancel</button>
+          <button type="submit" className="btn-primary" disabled={!parsed.ok || start.isPending}><Rocket className="h-4 w-4" />Start run</button>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function ConfigTab({ agentId, current }: { agentId: string; current?: Record<string, unknown> }) {
+  const configs = useAgentConfigs(agentId);
+  const canEdit = useCan("operator");
+  const [text, setText] = useState(pretty(current ?? { model: "gpt-4o-mini", temperature: 0.2, system_prompt: "You are a helpful agent." }));
+  const [comment, setComment] = useState("");
+  const save = useAction((body: { config: unknown; comment: string }) => api(`/api/v1/agents/${agentId}/configs`, { method: "POST", body }));
+  const parsed = parseJSON(text);
+  const isObject = parsed.ok && typeof parsed.value === "object" && parsed.value !== null && !Array.isArray(parsed.value);
+
+  return (
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+      <div className="card p-5 lg:col-span-3">
+        <h3 className="font-semibold text-white">Runtime configuration</h3>
+        <p className="mb-4 mt-1 text-sm text-ink-300">Pushed live to every instance of this agent; read it in your graph with <code className="text-brand-300">deck.config</code>. Each save is a new version.</p>
+        <textarea aria-label="Configuration JSON" rows={14} className="input font-mono text-xs" value={text} onChange={(e) => setText(e.target.value)} readOnly={!canEdit} />
+        {!isObject && <p className="mt-1 text-xs text-rose-300">{parsed.ok ? "Configuration must be a JSON object" : parsed.error}</p>}
+        <Can role="operator">
+          <div className="mt-3 flex gap-2">
+            <input className="input" placeholder="What changed? (optional)" value={comment} onChange={(e) => setComment(e.target.value)} />
+            <button className="btn-primary shrink-0" disabled={!isObject || save.isPending} onClick={() => parsed.ok && save.mutate({ config: parsed.value, comment }, { onSuccess: () => setComment("") })}>
+              <Save className="h-4 w-4" />Save & push
+            </button>
+          </div>
+          <div className="mt-3"><ErrorBox error={save.error} /></div>
+        </Can>
+      </div>
+      <div className="card p-5 lg:col-span-2">
+        <h3 className="mb-4 font-semibold text-white">History</h3>
+        {!configs.data?.length && <p className="text-sm text-ink-400">No versions yet.</p>}
+        <ol className="space-y-3">
+          {configs.data?.map((c) => (
+            <li key={c.version} className="rounded-xl border border-ink-700 p-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="font-medium text-white">v{c.version}</span>
+                <button className="text-xs text-brand-300 hover:text-brand-200" onClick={() => setText(pretty(c.config))}>Load</button>
+              </div>
+              <div className="mt-1 text-xs text-ink-400">{c.created_by} · {timeAgo(c.created_at)}</div>
+              {c.comment && <div className="mt-1 text-sm text-ink-200">{c.comment}</div>}
+            </li>
+          ))}
+        </ol>
+      </div>
+    </div>
+  );
+}
+
+export function AgentDetailPage() {
+  const { id = "" } = useParams();
+  const nav = useNavigate();
+  const { data, isLoading, error } = useAgent(id);
+  const runs = useRuns({ agent_id: id, limit: 50 });
+  const commands = useAgentCommands(id);
+  const [tab, setTab] = useState<Tab>("graph");
+  const [runOpen, setRunOpen] = useState(false);
+  const toggle = useAction((action: "pause" | "resume") => api(`/api/v1/agents/${id}/${action}`, { method: "POST" }));
+  const remove = useAction(() => api(`/api/v1/agents/${id}`, { method: "DELETE" }));
+
+  if (isLoading) return <Loading />;
+  if (error || !data) return <ErrorBox error={error ?? "Agent not found"} />;
+  const a = data.agent;
+  const paused = a.desired_state === "paused";
+
+  return (
+    <>
+      <PageHeader
+        title={<span className="flex items-center gap-3">{a.name}<StatusBadge kind="agent" status={a.status} /></span>}
+        subtitle={`${a.framework}${a.version ? ` v${a.version}` : ""} · ${a.instances} instance(s) · SDK ${a.sdk_version || "?"} · heartbeat ${timeAgo(a.last_heartbeat)}`}
+        actions={
+          <Can role="operator">
+            <button className="btn-ghost" onClick={() => toggle.mutate(paused ? "resume" : "pause")} disabled={toggle.isPending}>
+              {paused ? <><Play className="h-4 w-4" />Resume</> : <><Pause className="h-4 w-4" />Pause</>}
+            </button>
+            <button className="btn-primary" onClick={() => setRunOpen(true)} disabled={paused}><Rocket className="h-4 w-4" />Start run</button>
+            <Can role="admin">
+              <button
+                className="btn-danger"
+                aria-label="Delete agent"
+                onClick={() => confirm(`Delete ${a.name} and all of its runs? This cannot be undone.`) && remove.mutate(undefined, { onSuccess: () => nav("/agents") })}
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </Can>
+          </Can>
+        }
+      />
+      {a.description && <p className="-mt-3 mb-6 max-w-3xl text-sm text-ink-300">{a.description}</p>}
+      <ErrorBox error={toggle.error ?? remove.error} />
+
+      <Tabs<Tab>
+        value={tab}
+        onChange={setTab}
+        tabs={[
+          { id: "graph", label: "Graph" },
+          { id: "runs", label: `Runs${runs.data ? ` (${runs.data.length})` : ""}` },
+          { id: "config", label: "Configuration" },
+          { id: "commands", label: "Commands" },
+        ]}
+      />
+      {tab === "graph" && (
+        <div className="card p-4">
+          <GraphView graph={a.graph} height={360} />
+        </div>
+      )}
+      {tab === "runs" && <div className="card overflow-hidden"><RunsTable runs={runs.data} showAgent={false} /></div>}
+      {tab === "config" && <ConfigTab agentId={id} current={data.config?.config} />}
+      {tab === "commands" && (
+        <div className="card overflow-x-auto">
+          <table className="w-full min-w-[600px]">
+            <thead className="border-b border-ink-800"><tr><th className="table-head">Command</th><th className="table-head">Status</th><th className="table-head">By</th><th className="table-head">Result</th><th className="table-head text-right">Created</th></tr></thead>
+            <tbody className="divide-y divide-ink-800">
+              {commands.data?.map((c) => (
+                <tr key={c.id}>
+                  <td className="table-cell font-mono text-xs">{c.type}</td>
+                  <td className="table-cell">{c.status}</td>
+                  <td className="table-cell text-ink-300">{c.created_by}</td>
+                  <td className="table-cell text-ink-300">{c.result || "—"}</td>
+                  <td className="table-cell text-right text-ink-400">{timeAgo(c.created_at)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {!commands.data?.length && <p className="p-6 text-sm text-ink-400">No commands sent yet.</p>}
+        </div>
+      )}
+      {a.labels && Object.keys(a.labels).length > 0 && (
+        <div className="mt-6">
+          <h3 className="label">Labels</h3>
+          <JsonView value={a.labels} />
+        </div>
+      )}
+      <StartRunModal agentId={id} open={runOpen} onClose={() => setRunOpen(false)} />
+    </>
+  );
+}

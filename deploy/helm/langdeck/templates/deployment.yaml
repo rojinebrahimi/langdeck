@@ -1,0 +1,92 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "langdeck.fullname" . }}
+  labels: {{- include "langdeck.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  revisionHistoryLimit: 5
+  strategy:
+    type: RollingUpdate
+    rollingUpdate: { maxUnavailable: 0, maxSurge: 1 }
+  selector:
+    matchLabels: {{- include "langdeck.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}{{ toYaml . | nindent 8 }}{{- end }}
+      labels:
+        {{- include "langdeck.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}{{ toYaml . | nindent 8 }}{{- end }}
+    spec:
+      serviceAccountName: {{ include "langdeck.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext: {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      terminationGracePeriodSeconds: 40
+      containers:
+        - name: langdeck
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["serve"]
+          securityContext: {{- toYaml .Values.securityContext | nindent 12 }}
+          ports:
+            - { name: http, containerPort: 8080, protocol: TCP }
+            - { name: metrics, containerPort: 9090, protocol: TCP }
+          env:
+            - { name: LANGDECK_ENV, value: {{ .Values.env | quote }} }
+            - { name: LANGDECK_PUBLIC_URL, value: {{ .Values.publicURL | quote }} }
+            - { name: LANGDECK_LOG_LEVEL, value: {{ .Values.logLevel | quote }} }
+            - { name: LANGDECK_AUTH_MODE, value: {{ .Values.auth.mode | quote }} }
+            - { name: LANGDECK_OIDC_ISSUER, value: {{ .Values.auth.oidc.issuer | quote }} }
+            - { name: LANGDECK_OIDC_CLIENT_ID, value: {{ .Values.auth.oidc.clientID | quote }} }
+            - { name: LANGDECK_OIDC_SCOPES, value: {{ .Values.auth.oidc.scopes | quote }} }
+            - { name: LANGDECK_OIDC_GROUPS_CLAIM, value: {{ .Values.auth.oidc.groupsClaim | quote }} }
+            - { name: LANGDECK_OIDC_ADMIN_GROUPS, value: {{ .Values.auth.oidc.adminGroups | quote }} }
+            - { name: LANGDECK_OIDC_OPERATOR_GROUPS, value: {{ .Values.auth.oidc.operatorGroups | quote }} }
+            - { name: LANGDECK_OIDC_VIEWER_GROUPS, value: {{ .Values.auth.oidc.viewerGroups | quote }} }
+            - { name: LANGDECK_DEFAULT_ROLE, value: {{ .Values.auth.defaultRole | quote }} }
+            - { name: LANGDECK_BOOTSTRAP_ADMINS, value: {{ .Values.auth.bootstrapAdmins | quote }} }
+            - { name: LANGDECK_ALLOWED_EMAIL_DOMAINS, value: {{ .Values.auth.allowedEmailDomains | quote }} }
+            - { name: LANGDECK_SESSION_TTL, value: {{ .Values.auth.sessionTTL | quote }} }
+            - { name: LANGDECK_RETENTION_DAYS, value: {{ .Values.retentionDays | quote }} }
+            - { name: LANGDECK_TRUST_PROXY_HEADERS, value: {{ .Values.trustProxyHeaders | quote }} }
+            - name: LANGDECK_DATABASE_URL
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: database-url } }
+            - name: LANGDECK_OIDC_CLIENT_SECRET
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: oidc-client-secret, optional: true } }
+            - { name: LANGDECK_ADMIN_USERNAME, value: {{ .Values.auth.local.adminUsername | quote }} }
+            - { name: LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE, value: {{ .Values.auth.local.forcePasswordChange | quote }} }
+            - name: LANGDECK_ADMIN_PASSWORD
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: admin-password, optional: true } }
+            - name: LANGDECK_BOOTSTRAP_AGENT_KEY
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: bootstrap-agent-key, optional: true } }
+            {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
+          startupProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 2
+            failureThreshold: 30
+          livenessProbe:
+            httpGet: { path: /healthz, port: http }
+            periodSeconds: 15
+          readinessProbe:
+            httpGet: { path: /readyz, port: http }
+            periodSeconds: 5
+          resources: {{- toYaml .Values.resources | nindent 12 }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.topologySpreadConstraints }}
+      topologySpreadConstraints: {{- toYaml . | nindent 8 }}
+      {{- end }}

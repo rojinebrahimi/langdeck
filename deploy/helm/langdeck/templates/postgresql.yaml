@@ -1,0 +1,47 @@
+{{- if .Values.postgresql.enabled }}
+# Evaluation-only database. Use a managed PostgreSQL (RDS, Cloud SQL, CloudNativePG...) in production.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "langdeck.fullname" . }}-postgresql
+  labels: {{- include "langdeck.labels" . | nindent 4 }}
+spec:
+  selector: { app.kubernetes.io/name: {{ include "langdeck.name" . }}-postgresql, app.kubernetes.io/instance: {{ .Release.Name }} }
+  ports: [{ name: postgres, port: 5432, targetPort: 5432 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "langdeck.fullname" . }}-postgresql
+  labels: {{- include "langdeck.labels" . | nindent 4 }}
+spec:
+  serviceName: {{ include "langdeck.fullname" . }}-postgresql
+  replicas: 1
+  selector:
+    matchLabels: { app.kubernetes.io/name: {{ include "langdeck.name" . }}-postgresql, app.kubernetes.io/instance: {{ .Release.Name }} }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: {{ include "langdeck.name" . }}-postgresql, app.kubernetes.io/instance: {{ .Release.Name }} }
+    spec:
+      securityContext: { runAsNonRoot: true, runAsUser: 70, fsGroup: 70, seccompProfile: { type: RuntimeDefault } }
+      containers:
+        - name: postgres
+          image: {{ .Values.postgresql.image }}
+          securityContext: { allowPrivilegeEscalation: false, capabilities: { drop: [ALL] } }
+          env:
+            - { name: POSTGRES_USER, value: {{ .Values.postgresql.username | quote }} }
+            - { name: POSTGRES_PASSWORD, value: {{ required "postgresql.password is required" .Values.postgresql.password | quote }} }
+            - { name: POSTGRES_DB, value: {{ .Values.postgresql.database | quote }} }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+          ports: [{ containerPort: 5432 }]
+          readinessProbe: { exec: { command: ["pg_isready", "-U", {{ .Values.postgresql.username | quote }}] }, periodSeconds: 5 }
+          volumeMounts: [{ name: data, mountPath: /var/lib/postgresql/data }]
+  volumeClaimTemplates:
+    - metadata: { name: data }
+      spec:
+        accessModes: [ReadWriteOnce]
+        {{- with .Values.postgresql.storageClass }}
+        storageClassName: {{ . }}
+        {{- end }}
+        resources: { requests: { storage: {{ .Values.postgresql.storage }} } }
+{{- end }}
