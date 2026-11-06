@@ -1,0 +1,12 @@
+.git
+.github
+**/node_modules
+web/dist
+**/.venv
+**/__pycache__
+**/.pytest_cache
+deploy
+docs
+*.md
+!README.md
+coverage.*

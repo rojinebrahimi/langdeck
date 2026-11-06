@@ -1,0 +1,31 @@
+# Render Blueprint for a public LangDeck demo (free plan).
+# Deploy: https://render.com/deploy?repo=https://github.com/rojinebrahimi/langdeck
+#
+# What you get: LangDeck + a demo LangGraph agent generating traffic, dev auth
+# (any email signs in), in-memory data. Free instances sleep when idle and reset
+# their data on wake. For a real deployment use the Helm chart or the main image
+# with PostgreSQL and OIDC.
+services:
+  - type: web
+    name: langdeck-demo
+    runtime: docker
+    plan: free
+    dockerfilePath: ./deploy/render/Dockerfile
+    dockerContext: .
+    healthCheckPath: /healthz
+    autoDeploy: true
+    envVars:
+      - key: LANGDECK_AUTH_MODE
+        value: dev
+      - key: LANGDECK_LOG_FORMAT
+        value: text
+      - key: LANGDECK_TRUST_PROXY_HEADERS
+        value: "true"
+      - key: LANGDECK_RETENTION_DAYS
+        value: "2"
+      - key: DEMO_AGENT_SECRET
+        generateValue: true
+      - key: DEMO_TRAFFIC_EVERY_S
+        value: "45"
+      - key: AGENT_ENV
+        value: render-demo

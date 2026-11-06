@@ -1,0 +1,10 @@
+apiVersion: v2
+name: langdeck
+description: Open-source control plane for LangGraph agents
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/rojinebrahimi/langdeck
+sources: [https://github.com/rojinebrahimi/langdeck]
+keywords: [langgraph, agents, llm, control-plane, observability]
+icon: https://raw.githubusercontent.com/rojinebrahimi/langdeck/main/web/public/logo.svg

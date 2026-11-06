@@ -1,0 +1,15 @@
+LangDeck {{ .Chart.AppVersion }} is deployed.
+
+  URL: {{ .Values.publicURL }}
+{{- if not .Values.ingress.enabled }}
+
+  No ingress is enabled. To try it locally:
+    kubectl port-forward svc/{{ include "langdeck.fullname" . }} 8080:{{ .Values.service.port }} -n {{ .Release.Namespace }}
+{{- end }}
+
+Next steps:
+  1. Sign in{{ if eq .Values.auth.mode "oidc" }} with your identity provider ({{ .Values.auth.oidc.issuer }}){{ else if eq .Values.auth.mode "local" }} as {{ .Values.auth.local.adminUsername }} (default password "admin" unless secrets.adminPassword is set; you must change it at first sign-in){{ end }}.
+  2. Settings → API keys → create an "agent" key.
+  3. In your LangGraph service:  pip install langdeck  and set LANGDECK_URL / LANGDECK_API_KEY.
+
+Ingress tip: long-polls and the live stream keep connections open for up to 30s; set proxy read timeouts above that.
