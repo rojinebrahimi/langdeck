@@ -129,7 +129,7 @@ The secret holds `database-url` and `oidc-client-secret`. See the
 ### Other ways to run
 
 ```bash
-docker run -p 8080:8080 rojinebrahimi/langdeck:edge            # in-memory, admin / admin (edge = main; latest arrives with the first release)
+docker run -p 8080:8080 rojinebrahimi/langdeck:latest          # in-memory, admin / admin
 make build && ./bin/langdeck serve                             # single static binary
 ```
 
