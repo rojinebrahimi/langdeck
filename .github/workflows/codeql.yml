@@ -19,7 +19,7 @@ jobs:
       matrix:
         language: [go, javascript-typescript, python]
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - uses: actions/setup-go@v6
         if: matrix.language == 'go'
         with:
