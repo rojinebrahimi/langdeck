@@ -8,6 +8,8 @@
 
 See every run. Steer every agent. Keep a human in the loop.
 
+**[Live demo](https://langdeck-demo.onrender.com)** · [Docker Hub](https://hub.docker.com/r/rojinebrahimi/langdeck) · [Docs](docs/architecture.md)
+
 [![CI](https://github.com/rojinebrahimi/langdeck/actions/workflows/ci.yml/badge.svg)](https://github.com/rojinebrahimi/langdeck/actions/workflows/ci.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/rojinebrahimi/langdeck?color=9333ea&logo=docker&logoColor=white)](https://hub.docker.com/r/rojinebrahimi/langdeck)
 [![License](https://img.shields.io/badge/license-Apache%202.0-a855f7)](LICENSE)
@@ -124,6 +126,9 @@ The secret holds `database-url` and `oidc-client-secret`. See the
 [chart values](deploy/helm/langdeck/values.yaml) and the [production checklist](docs/security.md#production-checklist).
 
 ### Live demo on Render
+
+Try the hosted demo at **https://langdeck-demo.onrender.com** (sign in with any email; the free
+instance may take ~30 s to wake up), or deploy your own copy:
 
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/rojinebrahimi/langdeck)
 
