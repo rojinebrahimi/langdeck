@@ -59,6 +59,7 @@ func TestLocalAdminInProduction(t *testing.T) {
 func TestBadValues(t *testing.T) {
 	cases := map[string]string{
 		"LANGDECK_DB_MAX_CONNS":        "many",
+		"LANGDECK_RETENTION_DAYS":      "1e9",
 		"LANGDECK_SESSION_TTL":         "forever",
 		"LANGDECK_DEFAULT_ROLE":        "root",
 		"LANGDECK_AUTH_MODE":           "basic",
@@ -70,5 +71,17 @@ func TestBadValues(t *testing.T) {
 		if _, err := load(env(map[string]string{k: v})); err == nil {
 			t.Errorf("%s=%s should be rejected", k, v)
 		}
+	}
+}
+
+func TestDBMaxConnsBounds(t *testing.T) {
+	for _, bad := range []string{"0", "-1", "1001", "4294967296"} {
+		if _, err := load(env(map[string]string{"LANGDECK_DB_MAX_CONNS": bad})); err == nil {
+			t.Errorf("LANGDECK_DB_MAX_CONNS=%s must be rejected", bad)
+		}
+	}
+	c, err := load(env(map[string]string{"LANGDECK_DB_MAX_CONNS": "50"}))
+	if err != nil || c.DBMaxConns != 50 {
+		t.Fatalf("got %v %v", c, err)
 	}
 }

@@ -42,7 +42,7 @@ test-sdk: ## Python SDK tests
 lint: ## Static analysis
 	go vet ./...
 	@command -v golangci-lint >/dev/null && golangci-lint run || echo "golangci-lint not installed, skipped"
-	cd sdk/python && ruff check . && ruff format --check .
+	cd sdk/python && ruff check src tests && ruff format --check src tests
 
 .PHONY: docker
 docker: ## Build the container image
