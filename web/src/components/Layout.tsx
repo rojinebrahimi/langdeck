@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import clsx from "clsx";
 import { useQueryClient } from "@tanstack/react-query";
 import { Bot, Hand, KeyRound, LayoutDashboard, Lock, LogOut, Menu, PlayCircle, ScrollText, Users, X } from "lucide-react";
@@ -57,13 +57,13 @@ export function Layout({ children }: { children: ReactNode }) {
 
   const sidebar = (
     <nav className="flex h-full flex-col gap-1 p-4">
-      <div className="mb-6 flex items-center gap-2.5 px-2">
+      <Link to="/" onClick={() => setOpen(false)} aria-label="LangDeck home" title="LangDeck home" className="mb-6 flex items-center gap-2.5 rounded-xl px-2 py-1 transition hover:bg-ink-800/60">
         <img src="/logo.svg" alt="" className="h-8 w-8" />
         <div>
           <div className="font-semibold tracking-tight text-white">LangDeck</div>
           <div className="text-[11px] text-ink-400">Agent control plane</div>
         </div>
-      </div>
+      </Link>
       {nav.map((n) => (
         <Item key={n.to} {...n} badge={n.badge ? pending?.length : undefined} onClick={() => setOpen(false)} />
       ))}
@@ -113,6 +113,10 @@ export function Layout({ children }: { children: ReactNode }) {
           <button className="rounded-lg p-1.5 text-ink-200 hover:bg-ink-800 lg:hidden" onClick={() => setOpen(!open)} aria-label="Toggle menu">
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
+          <Link to="/" aria-label="LangDeck home" title="LangDeck home" className="flex items-center gap-2 rounded-lg px-1.5 py-1 transition hover:bg-ink-800">
+            <img src="/logo.svg" alt="" className="h-6 w-6" />
+            <span className="text-sm font-semibold tracking-tight text-white">LangDeck</span>
+          </Link>
           <div className="flex-1" />
           {me?.auth_mode === "dev" && (
             <span className="rounded-full bg-amber-400/10 px-2.5 py-1 text-xs font-medium text-amber-300 ring-1 ring-amber-400/30">dev auth</span>

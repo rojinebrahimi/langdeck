@@ -137,6 +137,91 @@ runs the demo agent on a free instance (sign in with any email; may take ~30 s t
 It is demo-only — dev sign-in, no persistence — so don't put real data there.
 (Its blueprint lives in [`render.yaml`](render.yaml) if you want a throwaway instance.)
 
+## Integrating with an existing LangGraph app
+
+You don't restructure your graph. LangDeck attaches as a [LangChain callback
+handler](https://python.langchain.com/docs/how_to/callbacks/) plus a control thread, so your
+`StateGraph` keeps its own state schema, checkpointer and tools.
+
+**1. Create an agent key.** Sign in, go to **Settings → API keys → New key**, choose role
+`agent` and optionally bind it to the agent name. Copy the `ldk_…` value — it is shown once and
+stored only as a hash.
+
+**2. Point your process at the control plane.**
+
+```bash
+export LANGDECK_URL=https://langdeck.example.com
+export LANGDECK_API_KEY=ldk_...
+```
+
+**3. Wrap the compiled graph and start the client.** One instance per process; `start()`
+registers the graph topology, begins heartbeating and opens the command long-poll.
+
+```python
+from langdeck import LangDeck
+
+deck = LangDeck(name="support-bot", version="1.0.0", labels={"env": "prod", "team": "support"})
+app = deck.instrument(builder.compile())   # returns a drop-in wrapper: .invoke/.ainvoke/.stream
+deck.start()                               # later: deck.stop() flushes and closes
+```
+
+`instrument()` returns an object that forwards every other attribute to the real graph
+(`app.get_graph()`, `app.update_state()`, …), so the rest of your code is unchanged. Pass your
+own `with_config`/callbacks through `config` and the SDK appends its tracer rather than replacing
+it. To trace calls your codebase already makes, add `deck.tracer(run_id)` to their callbacks.
+
+**4. Keep your state shape as-is.** Inputs typed in the UI are passed through verbatim; if your
+graph expects something else, translate it with `input_mapper`:
+
+```python
+app = deck.instrument(graph, input_mapper=lambda ui: {"messages": [("user", ui["question"])]})
+```
+
+**5. Use the runtime config instead of redeploying.** Values saved in the UI land on every
+instance within one heartbeat (`config_version` orders them, stale versions are ignored):
+
+```python
+model = deck.config.get("model", "gpt-4o-mini")
+temperature = float(deck.config.get("temperature", 0.2))
+
+@deck.on_config
+def reload(new_config):
+    rebuild_clients(new_config)
+```
+
+**6. Gate a node on a human.** `request_approval()` blocks *that run* (not the process) until an
+operator acts in **Approvals**, then returns a `Decision`:
+
+```python
+def refund(state):
+    decision = deck.request_approval("Refund $%s?" % state["amount"], payload=state, timeout=3600)
+    if not decision:                       # rejected or timed out
+        return {"reply": "Escalated to a human."}
+    return {"reply": "Refunded."}
+```
+
+**7. Decide how UI-started runs execute.** By default a UI run invokes the instrumented graph.
+If your agents are driven by a queue, a webhook or your own loop, take the run yourself:
+
+```python
+@deck.on_run
+def handle(ui_input, run_id, thread_id):
+    return runner.enqueue(ui_input, run_id)     # do the work however you like
+```
+
+**8. Know the failure modes.** Everything runs in a background thread with a bounded buffer: if
+LangDeck is down or the network drops, your graph keeps running and the newest events are
+retried, not lost silently (`deck.stop()` flushes on shutdown). Cancels, pause/resume and config
+pushes are at-least-once commands — duplicate deliveries are de-duplicated by id. A cancel is
+delivered at the next node boundary, which is why `RunCancelled` is raised there.
+
+**Async apps** use the same surface: `await app.ainvoke(...)` and `await deck.arequest_approval(...)`.
+
+**Already running a LangGraph Platform or Studio deployment?** LangDeck is not a replacement —
+it runs alongside, reading the same graph object and giving you a self-hosted control plane for
+the fleet. See the [SDK guide](sdk/python/README.md) for the full API and the
+[demo agent](examples/python-agent/agent.py) for a complete, runnable example.
+
 ## Architecture
 
 ```mermaid
@@ -150,6 +235,47 @@ flowchart LR
     A1["LangGraph agent<br/>+ langdeck SDK"] -- "outbound HTTPS<br/>events · long-poll commands" --> API
     A2["LangGraph agent<br/>+ langdeck SDK"] -- "Bearer API key" --> API
 ```
+
+The control loop, end to end:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant SDK as langdeck SDK
+    participant API as LangDeck API
+    participant DB as PostgreSQL
+    participant UI as Operator UI
+
+    SDK->>API: register graph topology, version, labels
+    API->>DB: upsert agent, latest config
+    loop every 15 s
+        SDK->>API: heartbeat
+        API-->>SDK: desired_state, config_version
+    end
+    UI->>API: Start run with input and thread_id
+    API->>DB: insert run + start_run command
+    SDK->>API: long-poll commands
+    API-->>SDK: start_run
+    SDK->>SDK: invoke graph with tracer callback
+    SDK->>API: batched node / LLM / tool events
+    API->>DB: append events
+    API-->>UI: SSE fan-out, ids only
+    SDK->>API: interrupt with approval question
+    UI->>API: approve / reject
+    API-->>SDK: decision
+    SDK->>API: run_end
+```
+
+| Component | Responsibility |
+|---|---|
+| `cmd/langdeck` | Single binary: config, migrations, HTTP server, metrics, graceful shutdown |
+| `internal/api` | Management and agent routes, SSE, RBAC, payload caps |
+| `internal/auth` | Sessions, API keys, CSRF, OIDC + PKCE, local password mode |
+| `internal/store` | One `Store` interface, two implementations — in-memory and PostgreSQL — both run the same contract suite |
+| `internal/events` | Local broker plus Postgres `LISTEN/NOTIFY` so every replica sees the same live view |
+| `internal/jobs` | Session cleanup, command expiry, retention purge |
+| `web/` | React UI, embedded into the binary at build time |
+| `sdk/python` | Tracing, control channel, approvals; LangChain-independent transport |
 
 - **Pull-based control channel:** agents long-poll for commands, so they never expose a port.
 - **Stateless servers:** scale horizontally; Postgres `LISTEN/NOTIFY` keeps every replica's live view in sync.
