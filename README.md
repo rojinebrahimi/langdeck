@@ -44,6 +44,7 @@ per-seat pricing, no data leaving your network.
 | 📊 **Fleet dashboard** | Runs per hour, failure rate, p50/p95 latency, token usage, busiest agents. |
 | 🔐 **Enterprise auth** | Built-in accounts (default `admin`/`admin`, forced change on first login) or OIDC SSO (Keycloak, Okta, Entra ID, Google, GitLab, Dex...) with PKCE, group-to-role mapping, RBAC, scoped and expiring API keys. |
 | 🧾 **Audit log** | Every action recorded with actor, target and IP. |
+| 🔔 **Chat notifications** | Approvals, failed runs and offline agents pushed to Slack, Mattermost, Microsoft Teams or Telegram — no payloads, just ids and a deep link. |
 | 🚀 **Production-ready** | Stateless replicas, Postgres LISTEN/NOTIFY fan-out, Prometheus metrics, retention, Helm chart, signed multi-arch images. |
 | 🧱 **Agent-friendly networking** | Agents only make outbound HTTPS calls. No inbound ports, works behind NAT and firewalls. |
 | 🛡️ **Never in the way** | The SDK buffers in the background; if LangDeck is down, your agents keep running. |
@@ -307,6 +308,7 @@ Full threat model and hardening guide: [docs/security.md](docs/security.md). Rep
 | [Configuration](docs/configuration.md) | Every environment variable |
 | [HTTP API](docs/api.md) | Management and agent endpoints |
 | [Security](docs/security.md) | Threat model, OIDC setup, production checklist |
+| [User guide](docs/user-guide.md) | Day-to-day guide for operators: screens, controls, roles |
 | [Python SDK](sdk/python/README.md) | Instrumenting LangGraph agents |
 
 ## Project layout

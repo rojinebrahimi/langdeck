@@ -38,6 +38,29 @@ startup with a message listing every problem.
 | `LANGDECK_RETENTION_DAYS` | `30` | Finished runs older than this are deleted. `0` keeps everything. |
 | `LANGDECK_COMMAND_TTL` | `1h` | Undelivered commands expire after this long. |
 
+### Chat notifications
+
+Optional. With no endpoint set, notifications are off and cost nothing.
+
+| Variable | Default | Description |
+|---|---|---|
+| `LANGDECK_NOTIFY_EVENTS` | `approval,run_failed,agent_offline` | Comma-separated events to send: `approval`, `run_failed`, `agent_offline`, `agent_online`. |
+| `LANGDECK_NOTIFY_SLACK_WEBHOOK_URL` | | Slack incoming webhook URL. |
+| `LANGDECK_NOTIFY_MATTERMOST_WEBHOOK_URL` | | Mattermost incoming webhook URL. |
+| `LANGDECK_NOTIFY_TEAMS_WEBHOOK_URL` | | Microsoft Teams incoming webhook or Workflows URL. |
+| `LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN` | | Telegram bot token from @BotFather. Set together with the chat id. |
+| `LANGDECK_NOTIFY_TELEGRAM_CHAT_ID` | | Telegram chat or channel id (e.g. `-1001234567890`). |
+
+Delivery is asynchronous with three attempts and exponential backoff; a 4xx response is treated
+as permanent and not retried. Messages contain ids, names and a deep link — never event payloads,
+so prompts and tool outputs stay inside LangDeck. If the queue fills (a webhook is down), events
+are dropped and counted in `langdeck_notifications_dropped_total` rather than slowing requests.
+
+Agent online/offline notices are emitted by the housekeeping loop, which polls agent status
+every 30 s when notifications are enabled; on multi-replica deployments each replica tracks the
+transition independently, so run the sweep on one replica (e.g. by enabling notifications only
+there) if duplicates are a concern.
+
 ## Endpoints
 
 | Path | Purpose |

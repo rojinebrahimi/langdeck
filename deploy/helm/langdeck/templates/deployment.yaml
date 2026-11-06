@@ -66,6 +66,16 @@ spec:
               valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: admin-password, optional: true } }
             - name: LANGDECK_BOOTSTRAP_AGENT_KEY
               valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: bootstrap-agent-key, optional: true } }
+            - { name: LANGDECK_NOTIFY_EVENTS, value: {{ .Values.notifications.events | quote }} }
+            - { name: LANGDECK_NOTIFY_TELEGRAM_CHAT_ID, value: {{ .Values.notifications.telegramChatID | quote }} }
+            - name: LANGDECK_NOTIFY_SLACK_WEBHOOK_URL
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: notify-slack-webhook-url, optional: true } }
+            - name: LANGDECK_NOTIFY_MATTERMOST_WEBHOOK_URL
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: notify-mattermost-webhook-url, optional: true } }
+            - name: LANGDECK_NOTIFY_TEAMS_WEBHOOK_URL
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: notify-teams-webhook-url, optional: true } }
+            - name: LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN
+              valueFrom: { secretKeyRef: { name: {{ include "langdeck.secretName" . }}, key: notify-telegram-bot-token, optional: true } }
             {{- with .Values.extraEnv }}{{ toYaml . | nindent 12 }}{{- end }}
           startupProbe:
             httpGet: { path: /healthz, port: http }

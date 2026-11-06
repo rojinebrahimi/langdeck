@@ -16,6 +16,7 @@ import (
 	"github.com/rojinebrahimi/langdeck/internal/config"
 	"github.com/rojinebrahimi/langdeck/internal/domain"
 	"github.com/rojinebrahimi/langdeck/internal/events"
+	"github.com/rojinebrahimi/langdeck/internal/notify"
 	"github.com/rojinebrahimi/langdeck/internal/server"
 	"github.com/rojinebrahimi/langdeck/internal/store"
 )
@@ -30,6 +31,10 @@ type API struct {
 	Log    *slog.Logger
 	UI     http.Handler // optional single-page app
 	Now    func() time.Time
+
+	// Notify delivers approvals and failures to chat webhooks. Nil is fine and means
+	// notifications are off.
+	Notify *notify.Dispatcher
 
 	// PollInterval is how often long-polls re-check the store when no
 	// notification arrives. Tests shorten it.

@@ -40,13 +40,24 @@ auth:
 
 # Secrets. Prefer existingSecret (managed by External Secrets, Sealed Secrets, Vault...).
 # The secret must contain: database-url, and optionally oidc-client-secret,
-# bootstrap-agent-key and admin-password.
+# bootstrap-agent-key, admin-password and the notify-* keys below.
 existingSecret: ""
 secrets:
   databaseURL: ""
   oidcClientSecret: ""
   bootstrapAgentKey: ""
   adminPassword: ""
+  # Chat notifications. Webhook URLs and bot tokens are credentials, so they live here.
+  notifySlackWebhookURL: ""        # key: notify-slack-webhook-url
+  notifyMattermostWebhookURL: ""   # key: notify-mattermost-webhook-url
+  notifyTeamsWebhookURL: ""        # key: notify-teams-webhook-url
+  notifyTelegramBotToken: ""       # key: notify-telegram-bot-token
+
+# Which events reach chat, and the Telegram chat to post to. Channels with no
+# webhook/token configured are skipped.
+notifications:
+  events: "approval,run_failed,agent_offline"   # also: agent_online
+  telegramChatID: ""
 
 retentionDays: 30
 trustProxyHeaders: true   # set false if no ingress/proxy sits in front

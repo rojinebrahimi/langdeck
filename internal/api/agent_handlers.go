@@ -191,6 +191,7 @@ func (a *API) agentEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		run.AgentName = ag.Name
+		wasFailed := run.Status == domain.RunFailed
 		stored := make([]domain.RunEvent, 0, len(evs))
 		for _, e := range evs {
 			ts := clampTS(e.Timestamp, now)
@@ -208,6 +209,9 @@ func (a *API) agentEvents(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		a.publish(r, events.Event{Kind: events.RunUpdated, AgentID: ag.ID, RunID: runID})
+		if !wasFailed && run.Status == domain.RunFailed {
+			a.notifyRunFailed(ag, run)
+		}
 	}
 	writeJSON(w, http.StatusAccepted, map[string]int{"accepted": len(req.Events)})
 }
@@ -411,6 +415,7 @@ func (a *API) agentCreateInterrupt(w http.ResponseWriter, r *http.Request) {
 		Payload: mustJSON(map[string]any{"interrupt_id": in.ID, "question": in.Question}), Timestamp: now}})
 	a.publish(r, events.Event{Kind: events.InterruptUpdated, AgentID: ag.ID, RunID: run.ID, ID: in.ID})
 	a.publish(r, events.Event{Kind: events.RunUpdated, AgentID: ag.ID, RunID: run.ID})
+	a.notifyApproval(ag, in)
 	writeJSON(w, http.StatusCreated, in)
 }
 

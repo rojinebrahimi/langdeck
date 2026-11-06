@@ -42,6 +42,14 @@ type Config struct {
 
 	BootstrapAgentKey string // optional pre-shared agent key, for headless setups
 
+	// Chat notifications. Empty endpoints are simply not used.
+	NotifyEvents         []string // approval, run_failed, agent_offline, agent_online
+	NotifySlackURL       string
+	NotifyMattermostURL  string
+	NotifyTeamsURL       string
+	NotifyTelegramToken  string
+	NotifyTelegramChatID string
+
 	CORSOrigins       []string
 	TrustProxyHeaders bool
 	LoginRateLimit    float64 // requests/second per IP on auth endpoints
@@ -63,38 +71,44 @@ func Load() (*Config, error) { return load(os.Getenv) }
 func load(get func(string) string) (*Config, error) {
 	e := envReader{get: get}
 	c := &Config{
-		Env:                 e.str("LANGDECK_ENV", "development"),
-		Addr:                e.str("LANGDECK_ADDR", ":8080"),
-		MetricsAddr:         e.str("LANGDECK_METRICS_ADDR", ":9090"),
-		PublicURL:           strings.TrimRight(e.str("LANGDECK_PUBLIC_URL", "http://localhost:8080"), "/"),
-		LogLevel:            e.str("LANGDECK_LOG_LEVEL", "info"),
-		LogFormat:           e.str("LANGDECK_LOG_FORMAT", "json"),
-		DatabaseURL:         e.str("LANGDECK_DATABASE_URL", ""),
-		DBMaxConns:          e.int32Range("LANGDECK_DB_MAX_CONNS", 20, 1, 1000),
-		AuthMode:            e.str("LANGDECK_AUTH_MODE", "local"),
-		AdminUsername:       e.str("LANGDECK_ADMIN_USERNAME", "admin"),
-		AdminPassword:       e.str("LANGDECK_ADMIN_PASSWORD", "admin"),
-		ForcePasswordChange: e.bool("LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE", true),
-		OIDCIssuer:          e.str("LANGDECK_OIDC_ISSUER", ""),
-		OIDCClientID:        e.str("LANGDECK_OIDC_CLIENT_ID", ""),
-		OIDCClientSecret:    e.str("LANGDECK_OIDC_CLIENT_SECRET", ""),
-		OIDCScopes:          e.list("LANGDECK_OIDC_SCOPES", "openid,profile,email"),
-		OIDCGroupsClaim:     e.str("LANGDECK_OIDC_GROUPS_CLAIM", "groups"),
-		AdminGroups:         e.list("LANGDECK_OIDC_ADMIN_GROUPS", ""),
-		OperatorGroups:      e.list("LANGDECK_OIDC_OPERATOR_GROUPS", ""),
-		ViewerGroups:        e.list("LANGDECK_OIDC_VIEWER_GROUPS", ""),
-		DefaultRole:         e.str("LANGDECK_DEFAULT_ROLE", "viewer"),
-		BootstrapAdmins:     e.list("LANGDECK_BOOTSTRAP_ADMINS", ""),
-		AllowedEmailDomains: e.list("LANGDECK_ALLOWED_EMAIL_DOMAINS", ""),
-		SessionTTL:          e.dur("LANGDECK_SESSION_TTL", 12*time.Hour),
-		BootstrapAgentKey:   e.str("LANGDECK_BOOTSTRAP_AGENT_KEY", ""),
-		CORSOrigins:         e.list("LANGDECK_CORS_ORIGINS", ""),
-		TrustProxyHeaders:   e.bool("LANGDECK_TRUST_PROXY_HEADERS", false),
-		LoginRateLimit:      e.float("LANGDECK_LOGIN_RATE_LIMIT", 1),
-		APIRateLimit:        e.float("LANGDECK_API_RATE_LIMIT", 50),
-		MaxBodyBytes:        int64(e.int("LANGDECK_MAX_BODY_BYTES", 4<<20)),
-		RetentionDays:       e.int("LANGDECK_RETENTION_DAYS", 30),
-		CommandTTL:          e.dur("LANGDECK_COMMAND_TTL", time.Hour),
+		Env:                  e.str("LANGDECK_ENV", "development"),
+		Addr:                 e.str("LANGDECK_ADDR", ":8080"),
+		MetricsAddr:          e.str("LANGDECK_METRICS_ADDR", ":9090"),
+		PublicURL:            strings.TrimRight(e.str("LANGDECK_PUBLIC_URL", "http://localhost:8080"), "/"),
+		LogLevel:             e.str("LANGDECK_LOG_LEVEL", "info"),
+		LogFormat:            e.str("LANGDECK_LOG_FORMAT", "json"),
+		DatabaseURL:          e.str("LANGDECK_DATABASE_URL", ""),
+		DBMaxConns:           e.int32Range("LANGDECK_DB_MAX_CONNS", 20, 1, 1000),
+		AuthMode:             e.str("LANGDECK_AUTH_MODE", "local"),
+		AdminUsername:        e.str("LANGDECK_ADMIN_USERNAME", "admin"),
+		AdminPassword:        e.str("LANGDECK_ADMIN_PASSWORD", "admin"),
+		ForcePasswordChange:  e.bool("LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE", true),
+		OIDCIssuer:           e.str("LANGDECK_OIDC_ISSUER", ""),
+		OIDCClientID:         e.str("LANGDECK_OIDC_CLIENT_ID", ""),
+		OIDCClientSecret:     e.str("LANGDECK_OIDC_CLIENT_SECRET", ""),
+		OIDCScopes:           e.list("LANGDECK_OIDC_SCOPES", "openid,profile,email"),
+		OIDCGroupsClaim:      e.str("LANGDECK_OIDC_GROUPS_CLAIM", "groups"),
+		AdminGroups:          e.list("LANGDECK_OIDC_ADMIN_GROUPS", ""),
+		OperatorGroups:       e.list("LANGDECK_OIDC_OPERATOR_GROUPS", ""),
+		ViewerGroups:         e.list("LANGDECK_OIDC_VIEWER_GROUPS", ""),
+		DefaultRole:          e.str("LANGDECK_DEFAULT_ROLE", "viewer"),
+		BootstrapAdmins:      e.list("LANGDECK_BOOTSTRAP_ADMINS", ""),
+		AllowedEmailDomains:  e.list("LANGDECK_ALLOWED_EMAIL_DOMAINS", ""),
+		SessionTTL:           e.dur("LANGDECK_SESSION_TTL", 12*time.Hour),
+		BootstrapAgentKey:    e.str("LANGDECK_BOOTSTRAP_AGENT_KEY", ""),
+		NotifyEvents:         e.list("LANGDECK_NOTIFY_EVENTS", "approval,run_failed,agent_offline"),
+		NotifySlackURL:       e.str("LANGDECK_NOTIFY_SLACK_WEBHOOK_URL", ""),
+		NotifyMattermostURL:  e.str("LANGDECK_NOTIFY_MATTERMOST_WEBHOOK_URL", ""),
+		NotifyTeamsURL:       e.str("LANGDECK_NOTIFY_TEAMS_WEBHOOK_URL", ""),
+		NotifyTelegramToken:  e.str("LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN", ""),
+		NotifyTelegramChatID: e.str("LANGDECK_NOTIFY_TELEGRAM_CHAT_ID", ""),
+		CORSOrigins:          e.list("LANGDECK_CORS_ORIGINS", ""),
+		TrustProxyHeaders:    e.bool("LANGDECK_TRUST_PROXY_HEADERS", false),
+		LoginRateLimit:       e.float("LANGDECK_LOGIN_RATE_LIMIT", 1),
+		APIRateLimit:         e.float("LANGDECK_API_RATE_LIMIT", 50),
+		MaxBodyBytes:         int64(e.int("LANGDECK_MAX_BODY_BYTES", 4<<20)),
+		RetentionDays:        e.int("LANGDECK_RETENTION_DAYS", 30),
+		CommandTTL:           e.dur("LANGDECK_COMMAND_TTL", time.Hour),
 	}
 	if len(e.errs) > 0 {
 		return nil, errors.Join(e.errs...)
@@ -146,6 +160,28 @@ func (c *Config) validate() error {
 	}
 	if c.BootstrapAgentKey != "" && (len(c.BootstrapAgentKey) < 36 || !strings.HasPrefix(c.BootstrapAgentKey, "ldk_")) {
 		bad("LANGDECK_BOOTSTRAP_AGENT_KEY must start with ldk_ and be at least 36 characters")
+	}
+	for env, endpoint := range map[string]string{
+		"LANGDECK_NOTIFY_SLACK_WEBHOOK_URL":      c.NotifySlackURL,
+		"LANGDECK_NOTIFY_MATTERMOST_WEBHOOK_URL": c.NotifyMattermostURL,
+		"LANGDECK_NOTIFY_TEAMS_WEBHOOK_URL":      c.NotifyTeamsURL,
+	} {
+		if endpoint == "" {
+			continue
+		}
+		if u, err := url.Parse(endpoint); err != nil || (u.Scheme != "http" && u.Scheme != "https") || u.Host == "" {
+			bad("%s must be an absolute http(s) URL", env)
+		}
+	}
+	if (c.NotifyTelegramToken == "") != (c.NotifyTelegramChatID == "") {
+		bad("LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN and LANGDECK_NOTIFY_TELEGRAM_CHAT_ID must be set together")
+	}
+	for _, kind := range c.NotifyEvents {
+		switch kind {
+		case "approval", "run_failed", "agent_offline", "agent_online":
+		default:
+			bad("LANGDECK_NOTIFY_EVENTS must list approval, run_failed, agent_offline or agent_online (got %q)", kind)
+		}
 	}
 	if c.LoginRateLimit <= 0 || c.APIRateLimit <= 0 {
 		bad("rate limits must be positive")

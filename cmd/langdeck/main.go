@@ -22,6 +22,7 @@ import (
 	"github.com/rojinebrahimi/langdeck/internal/domain"
 	"github.com/rojinebrahimi/langdeck/internal/events"
 	"github.com/rojinebrahimi/langdeck/internal/jobs"
+	"github.com/rojinebrahimi/langdeck/internal/notify"
 	"github.com/rojinebrahimi/langdeck/internal/store"
 	"github.com/rojinebrahimi/langdeck/internal/store/memory"
 	"github.com/rojinebrahimi/langdeck/internal/store/postgres"
@@ -145,8 +146,20 @@ func serve() error {
 		return err
 	}
 
+	notifier := notify.New(notify.Options{
+		SlackURL:      cfg.NotifySlackURL,
+		MattermostURL: cfg.NotifyMattermostURL,
+		TeamsURL:      cfg.NotifyTeamsURL,
+		TelegramToken: cfg.NotifyTelegramToken,
+		TelegramChat:  cfg.NotifyTelegramChatID,
+		Events:        cfg.NotifyEvents,
+		PublicURL:     cfg.PublicURL,
+		Log:           log,
+	})
+	go notifier.Run(ctx)
+
 	a := &api.API{
-		Store: st, Broker: broker, Cfg: cfg, Log: log, UI: web.Handler(),
+		Store: st, Broker: broker, Cfg: cfg, Log: log, UI: web.Handler(), Notify: notifier,
 		Auth: &auth.Authenticator{Store: st, SecureCookies: cfg.SecureCookies(), Now: func() time.Time { return time.Now().UTC() }},
 	}
 	if cfg.AuthMode == "oidc" {
@@ -157,7 +170,8 @@ func serve() error {
 		}
 	}
 
-	go (&jobs.Runner{Store: st, Log: log, RetentionDays: cfg.RetentionDays, CommandTTL: cfg.CommandTTL}).Run(ctx)
+	go (&jobs.Runner{Store: st, Log: log, RetentionDays: cfg.RetentionDays, CommandTTL: cfg.CommandTTL,
+		Notify: notifier, PublicURL: cfg.PublicURL}).Run(ctx)
 
 	srv := &http.Server{
 		Addr:              cfg.Addr,

@@ -19,6 +19,7 @@ import (
 	"github.com/rojinebrahimi/langdeck/internal/config"
 	"github.com/rojinebrahimi/langdeck/internal/domain"
 	"github.com/rojinebrahimi/langdeck/internal/events"
+	"github.com/rojinebrahimi/langdeck/internal/notify"
 	"github.com/rojinebrahimi/langdeck/internal/store/memory"
 )
 
@@ -30,7 +31,9 @@ type env struct {
 
 func newEnv(t *testing.T) *env { return newEnvMode(t, "dev") }
 
-func newEnvMode(t *testing.T, mode string) *env {
+func newEnvMode(t *testing.T, mode string) *env { return newEnvNotify(t, mode, nil) }
+
+func newEnvNotify(t *testing.T, mode string, n *notify.Dispatcher) *env {
 	t.Helper()
 	st := memory.New()
 	cfg := &config.Config{
@@ -50,6 +53,10 @@ func newEnvMode(t *testing.T, mode string) *env {
 		Log:          slog.New(slog.NewTextHandler(io.Discard, nil)),
 		Auth:         &auth.Authenticator{Store: st, Now: func() time.Time { return time.Now().UTC() }},
 		PollInterval: 20 * time.Millisecond,
+		Notify:       n,
+	}
+	if n != nil {
+		go n.Run(ctx)
 	}
 	srv := httptest.NewServer(a.Handler(ctx))
 	t.Cleanup(srv.Close)

@@ -85,3 +85,32 @@ func TestDBMaxConnsBounds(t *testing.T) {
 		t.Fatalf("got %v %v", c, err)
 	}
 }
+
+func TestNotifySettings(t *testing.T) {
+	c, err := load(env(map[string]string{
+		"LANGDECK_NOTIFY_SLACK_WEBHOOK_URL":  "https://hooks.slack.com/services/T/B/x",
+		"LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN": "123:abc",
+		"LANGDECK_NOTIFY_TELEGRAM_CHAT_ID":   "-100123",
+		"LANGDECK_NOTIFY_EVENTS":             "approval, agent_online",
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.NotifySlackURL == "" || c.NotifyTelegramChatID != "-100123" || len(c.NotifyEvents) != 2 {
+		t.Fatalf("notify settings not loaded: %+v", c)
+	}
+	if d, _ := load(env(nil)); len(d.NotifyEvents) != 3 {
+		t.Fatalf("default events: %v", d.NotifyEvents)
+	}
+	bad := []map[string]string{
+		{"LANGDECK_NOTIFY_SLACK_WEBHOOK_URL": "not a url"},
+		{"LANGDECK_NOTIFY_TEAMS_WEBHOOK_URL": "ftp://example.com/hook"},
+		{"LANGDECK_NOTIFY_TELEGRAM_BOT_TOKEN": "123:abc"}, // chat id missing
+		{"LANGDECK_NOTIFY_EVENTS": "approval,deploy"},
+	}
+	for _, m := range bad {
+		if _, err := load(env(m)); err == nil {
+			t.Errorf("%v should be rejected", m)
+		}
+	}
+}
