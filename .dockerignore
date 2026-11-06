@@ -6,6 +6,7 @@ web/dist
 **/__pycache__
 **/.pytest_cache
 deploy
+!deploy/render/start.sh
 docs
 *.md
 !README.md
