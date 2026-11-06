@@ -30,7 +30,7 @@ jobs:
       LANGDECK_TEST_DATABASE_URL: postgres://langdeck:langdeck@localhost:5432/langdeck_test?sslmode=disable
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x" # always the newest patch release, for stdlib security fixes
           check-latest: true
@@ -96,7 +96,7 @@ jobs:
       LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE: "false"
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version: "1.26.x" # always the newest patch release, for stdlib security fixes
           check-latest: true
