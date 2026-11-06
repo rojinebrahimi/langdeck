@@ -115,7 +115,7 @@ More in the [SDK guide](sdk/python/README.md).
 ### 3. Deploy to Kubernetes
 
 ```bash
-helm install langdeck oci://registry-1.docker.io/rojinebrahimi/langdeck \
+helm install langdeck oci://ghcr.io/rojinebrahimi/charts/langdeck \
   --set publicURL=https://langdeck.example.com \
   --set auth.oidc.issuer=https://sso.example.com/realms/main \
   --set auth.oidc.adminGroups=platform \
