@@ -57,3 +57,6 @@ sdk/python/dist/
 
 # Local assistant tooling
 .claude/
+
+# Playwright MCP scratch
+.playwright-mcp/
