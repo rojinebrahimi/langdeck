@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -61,11 +63,16 @@ func healthcheck() int {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "http://127.0.0.1"+portOf(addr)+"/healthz", nil)
+	port, err := strconv.ParseUint(strings.TrimPrefix(portOf(addr), ":"), 10, 16)
 	if err != nil {
 		return 1
 	}
-	resp, err := http.DefaultClient.Do(req)
+	// The host is fixed to loopback; only a validated numeric port comes from config.
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, fmt.Sprintf("http://127.0.0.1:%d/healthz", port), nil) //nolint:gosec // G704: loopback only
+	if err != nil {
+		return 1
+	}
+	resp, err := http.DefaultClient.Do(req) //nolint:gosec // G704: loopback only
 	if err != nil || resp.StatusCode != http.StatusOK {
 		return 1
 	}

@@ -62,7 +62,7 @@ const flowCookieTTL = 10 * time.Minute
 func (o *OIDC) Begin(w http.ResponseWriter, r *http.Request) {
 	state, nonce, verifier := util.RandomToken(24), util.RandomToken(24), oauth2.GenerateVerifier()
 	for name, v := range map[string]string{"state": state, "nonce": nonce, "pkce": verifier} {
-		http.SetCookie(w, &http.Cookie{
+		http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is set whenever the public URL is https
 			Name: flowCookie + "_" + name, Value: v, Path: "/auth/callback", MaxAge: int(flowCookieTTL.Seconds()),
 			HttpOnly: true, Secure: o.secure, SameSite: http.SameSiteLaxMode,
 		})
@@ -85,7 +85,7 @@ func (o *OIDC) Finish(w http.ResponseWriter, r *http.Request) (*Claims, error) {
 	}
 	state, nonce, verifier := cookie("state"), cookie("nonce"), cookie("pkce")
 	for _, name := range []string{"state", "nonce", "pkce"} {
-		http.SetCookie(w, &http.Cookie{Name: flowCookie + "_" + name, Path: "/auth/callback", MaxAge: -1,
+		http.SetCookie(w, &http.Cookie{Name: flowCookie + "_" + name, Path: "/auth/callback", MaxAge: -1, //nolint:gosec // G124: clearing only
 			HttpOnly: true, Secure: o.secure, SameSite: http.SameSiteLaxMode})
 	}
 

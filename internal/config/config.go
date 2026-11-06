@@ -241,9 +241,13 @@ func agentNameLike(s string) bool {
 
 // int32Range parses an integer that must lie in [lo, hi]; out-of-range values are an error.
 func (e *envReader) int32Range(k string, def, lo, hi int32) int32 {
-	n := e.int(k, int(def))
-	if n < int(lo) || n > int(hi) {
-		e.errs = append(e.errs, fmt.Errorf("%s must be between %d and %d", k, lo, hi))
+	v := e.str(k, "")
+	if v == "" {
+		return def
+	}
+	n, err := strconv.ParseInt(v, 10, 32) // bitSize 32 makes the int32 conversion below safe
+	if err != nil || int32(n) < lo || int32(n) > hi {
+		e.errs = append(e.errs, fmt.Errorf("%s must be an integer between %d and %d", k, lo, hi))
 		return def
 	}
 	return int32(n)

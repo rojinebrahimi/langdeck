@@ -168,7 +168,8 @@ func (a *Authenticator) StartSession(w http.ResponseWriter, r *http.Request, u *
 	if err := a.Store.CreateSession(r.Context(), s); err != nil {
 		return err
 	}
-	http.SetCookie(w, &http.Cookie{
+	// Secure follows the public URL scheme: it must be off for plain-http local development.
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is set whenever LANGDECK_PUBLIC_URL is https
 		Name: a.SessionCookieName(), Value: raw, Path: "/", Expires: s.ExpiresAt,
 		HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode,
 	})
@@ -180,7 +181,7 @@ func (a *Authenticator) EndSession(w http.ResponseWriter, r *http.Request, p *Pr
 	if p != nil && p.SessionID != "" {
 		_ = a.Store.DeleteSession(r.Context(), p.SessionID)
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: see StartSession
 		Name: a.SessionCookieName(), Value: "", Path: "/", MaxAge: -1,
 		HttpOnly: true, Secure: a.SecureCookies, SameSite: http.SameSiteLaxMode,
 	})
