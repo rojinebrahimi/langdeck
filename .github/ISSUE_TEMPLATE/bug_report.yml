@@ -1,0 +1,24 @@
+name: Bug report
+description: Something is not working
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened?, description: Include what you expected instead. }
+    validations: { required: true }
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce }
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes: { label: LangDeck version, placeholder: "langdeck version / image tag / SDK version" }
+    validations: { required: true }
+  - type: dropdown
+    id: deploy
+    attributes:
+      label: Deployment
+      options: [Docker compose, Helm, Binary, Other]
+  - type: textarea
+    id: logs
+    attributes: { label: Logs, render: text, description: Remove secrets first. }
