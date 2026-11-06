@@ -5,6 +5,24 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-11-07
+
+The Python SDK is now on PyPI:
+
+```bash
+pip install langdeck              # or: pip install "langdeck[langgraph]"
+```
+
+### Added
+- `langdeck` published to PyPI with trusted publishing (OIDC from GitHub Actions, no API token).
+- PyPI project links (source, issues, changelog, demo), Python version classifiers and a `py.typed`
+  marker, so type checkers use the SDK's annotations.
+
+### Changed
+- CI builds the sdist and wheel and runs `twine check --strict` on every push.
+- Releases refuse to publish the SDK when its version differs from the tag.
+- GitHub Actions updated: checkout v7, setup-go v7, build-push-action v7, setup-qemu-action v4.
+
 ## [0.1.1] - 2026-11-06
 
 The first public release of LangDeck, a self-hosted control plane for LangGraph agents.
@@ -93,6 +111,7 @@ Helm chart.
 Container images only (`rojinebrahimi/langdeck:0.1.0`). The release pipeline stopped before
 publishing the GitHub release and Helm chart; see 0.1.1, which contains the same features.
 
-[Unreleased]: https://github.com/rojinebrahimi/langdeck/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/rojinebrahimi/langdeck/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/rojinebrahimi/langdeck/releases/tag/v0.1.2
 [0.1.1]: https://github.com/rojinebrahimi/langdeck/releases/tag/v0.1.1
 [0.1.0]: https://github.com/rojinebrahimi/langdeck/compare/49e2b3f...v0.1.0
