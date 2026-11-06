@@ -181,7 +181,12 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - run: pip install build && python -m build sdk/python
+      - name: Check the SDK version matches the tag
+        run: |
+          V="${GITHUB_REF_NAME#v}"
+          grep -q "^version = \"$V\"$" sdk/python/pyproject.toml || { echo "pyproject.toml version != $V" >&2; exit 1; }
+          grep -q "__version__ = \"$V\"" sdk/python/src/langdeck/_version.py || { echo "_version.py != $V" >&2; exit 1; }
+      - run: pip install build twine && python -m build sdk/python && twine check --strict sdk/python/dist/*
       - uses: pypa/gh-action-pypi-publish@release/v1
         with:
           packages-dir: sdk/python/dist

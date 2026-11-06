@@ -17,6 +17,11 @@ classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Software Development :: Libraries",
   "Topic :: Scientific/Engineering :: Artificial Intelligence",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Typing :: Typed",
 ]
 dependencies = ["httpx>=0.25"]
 
@@ -27,6 +32,10 @@ dev = ["pytest>=8", "pytest-asyncio>=0.23", "ruff>=0.6", "langgraph>=0.2", "lang
 [project.urls]
 Homepage = "https://github.com/rojinebrahimi/langdeck"
 Documentation = "https://github.com/rojinebrahimi/langdeck/tree/main/sdk/python"
+Source = "https://github.com/rojinebrahimi/langdeck/tree/main/sdk/python"
+Issues = "https://github.com/rojinebrahimi/langdeck/issues"
+Changelog = "https://github.com/rojinebrahimi/langdeck/blob/main/CHANGELOG.md"
+Demo = "https://langdeck-demo.onrender.com"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/langdeck"]

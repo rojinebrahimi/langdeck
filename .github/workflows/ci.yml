@@ -86,6 +86,13 @@ jobs:
       - run: pip install -e ".[dev]"
       - run: ruff check src tests && ruff format --check src tests
       - run: pytest -q
+      - name: Build and validate the package (what PyPI will receive)
+        if: matrix.python == '3.12'
+        run: |
+          pip install build twine
+          python -m build
+          twine check --strict dist/*
+          python -m zipfile -l dist/*.whl | grep -q "langdeck/py.typed"
 
   e2e:
     name: End-to-end (Go server + Python SDK + LangGraph)
