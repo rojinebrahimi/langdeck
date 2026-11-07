@@ -2,7 +2,8 @@
 # Deploy: https://render.com/deploy?repo=https://github.com/rojinebrahimi/langdeck
 #
 # What you get: LangDeck + a demo LangGraph agent generating traffic, dev auth
-# (any email signs in), in-memory data. Free instances sleep when idle and reset
+# in demo mode (one-click anonymous visitors with the operator role, no emails or
+# IPs stored), in-memory data. Free instances sleep when idle and reset
 # their data on wake. For a real deployment use the Helm chart or the main image
 # with PostgreSQL and OIDC.
 services:
@@ -17,6 +18,8 @@ services:
     envVars:
       - key: LANGDECK_AUTH_MODE
         value: dev
+      - key: LANGDECK_DEMO_MODE
+        value: "true"
       - key: LANGDECK_LOG_FORMAT
         value: text
       - key: LANGDECK_TRUST_PROXY_HEADERS

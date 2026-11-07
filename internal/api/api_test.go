@@ -35,11 +35,19 @@ func newEnvMode(t *testing.T, mode string) *env { return newEnvNotify(t, mode, n
 
 func newEnvNotify(t *testing.T, mode string, n *notify.Dispatcher) *env {
 	t.Helper()
+	return newEnvWith(t, mode, n, nil)
+}
+
+func newEnvWith(t *testing.T, mode string, n *notify.Dispatcher, tweak func(*config.Config)) *env {
+	t.Helper()
 	st := memory.New()
 	cfg := &config.Config{
 		Env: "development", AuthMode: mode, PublicURL: "http://localhost", SessionTTL: time.Hour,
 		LoginRateLimit: 1000, APIRateLimit: 1000, MaxBodyBytes: 1 << 20, DefaultRole: "viewer",
 		AdminUsername: "admin", AdminPassword: "admin", ForcePasswordChange: true,
+	}
+	if tweak != nil {
+		tweak(cfg)
 	}
 	if mode == "local" {
 		if _, err := api.EnsureLocalAdmin(context.Background(), st, "admin", "admin", true); err != nil {

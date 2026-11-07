@@ -14,6 +14,7 @@ startup with a message listing every problem.
 | `LANGDECK_DATABASE_URL` | *(empty)* | PostgreSQL URL. Empty uses the in-memory store (development only). |
 | `LANGDECK_DB_MAX_CONNS` | `20` | Connection pool size per replica. |
 | `LANGDECK_AUTH_MODE` | `local` | `local` (username/password), `oidc` (SSO) or `dev` (any email signs in as admin; refused in production). |
+| `LANGDECK_DEMO_MODE` | `false` | For public demos, with `dev` auth: one-click anonymous visitors with the operator role; no emails or IP addresses are stored. Refused in production. |
 | `LANGDECK_ADMIN_USERNAME` | `admin` | Initial admin account created in `local` mode if it does not exist. |
 | `LANGDECK_ADMIN_PASSWORD` | `admin` | Its initial password. Only used when the account is created. |
 | `LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE` | `true` | Require choosing a new password at first sign-in. Production refuses `false` with the default password. |

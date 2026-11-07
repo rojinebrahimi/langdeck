@@ -244,7 +244,7 @@ func (a *API) audit(r *http.Request, action, targetType, targetID string, detail
 		raw, _ = json.Marshal(details)
 	}
 	e := &domain.AuditEntry{Actor: actor, Action: action, TargetType: targetType, TargetID: targetID,
-		Details: raw, IP: server.ClientIP(r.Context()), CreatedAt: a.Now()}
+		Details: raw, IP: a.auditIP(r), CreatedAt: a.Now()}
 	if err := a.Store.AppendAudit(context.WithoutCancel(r.Context()), e); err != nil {
 		a.Log.Error("audit write failed", "err", err, "action", action)
 	}
@@ -252,4 +252,12 @@ func (a *API) audit(r *http.Request, action, targetType, targetID string, detail
 
 func (a *API) publish(r *http.Request, e events.Event) {
 	a.Broker.Publish(context.WithoutCancel(r.Context()), e)
+}
+
+// auditIP is the client address for the audit log; a public demo stores none.
+func (a *API) auditIP(r *http.Request) string {
+	if a.Cfg.DemoMode {
+		return ""
+	}
+	return server.ClientIP(r.Context())
 }

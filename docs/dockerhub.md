@@ -3,7 +3,7 @@
 **The open-source control plane for LangGraph agents.** See every run, steer every agent, keep a human in the loop.
 
 - **GitHub:** https://github.com/rojinebrahimi/langdeck
-- **Live demo:** https://langdeck-demo.onrender.com (sign in with any email; the free instance may take ~30 s to wake up)
+- **Live demo:** https://langdeck-demo.onrender.com (one click, anonymous, no sign-up; the free instance may take ~30 s to wake up)
 - **Docs:** [Architecture](https://github.com/rojinebrahimi/langdeck/blob/main/docs/architecture.md) · [User guide](https://github.com/rojinebrahimi/langdeck/blob/main/docs/user-guide.md) · [Configuration](https://github.com/rojinebrahimi/langdeck/blob/main/docs/configuration.md) · [Security](https://github.com/rojinebrahimi/langdeck/blob/main/docs/security.md)
 
 ![LangDeck demo](https://raw.githubusercontent.com/rojinebrahimi/langdeck/main/docs/images/demo.gif)

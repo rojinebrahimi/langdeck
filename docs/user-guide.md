@@ -35,9 +35,14 @@ with a session. Your role comes from the groups in your token — the administra
 names to `viewer`, `operator` or `admin` (see [docs/security.md](security.md#oidc-setup)). No
 LangDeck account is created by hand.
 
-**Dev mode** (`AUTH_MODE=dev`) exists only for the hosted demo and local trials: any email signs
-in as an administrator. It is refused outright when `LANGDECK_ENV=production`, and the UI shows
-a `dev auth` badge so you can never mistake it for a real deployment.
+**Dev mode** (`AUTH_MODE=dev`) is for local trials: any email signs in as an administrator. It is
+refused outright when `LANGDECK_ENV=production`, and the UI shows a `dev auth` badge so you can
+never mistake it for a real deployment.
+
+**Demo mode** (`LANGDECK_DEMO_MODE=true`, on top of dev mode) is what the public demo runs. Visitors
+click *Enter the demo* and get a random anonymous identity (`visitor-…@demo.invalid`) with the
+**operator** role. No email is collected, no IP address is stored, and visitors cannot open users,
+API keys or the audit log, so they never see each other or break the demo agent.
 
 Signing out drops the session server-side; API keys are unaffected.
 

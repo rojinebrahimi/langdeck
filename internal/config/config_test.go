@@ -114,3 +114,16 @@ func TestNotifySettings(t *testing.T) {
 		}
 	}
 }
+
+func TestDemoModeGuards(t *testing.T) {
+	if _, err := load(env(map[string]string{"LANGDECK_AUTH_MODE": "dev", "LANGDECK_DEMO_MODE": "true"})); err != nil {
+		t.Fatalf("demo mode with dev auth must be accepted: %v", err)
+	}
+	if _, err := load(env(map[string]string{"LANGDECK_DEMO_MODE": "true"})); err == nil {
+		t.Fatal("demo mode without dev auth must be rejected")
+	}
+	if _, err := load(env(map[string]string{"LANGDECK_ENV": "production", "LANGDECK_AUTH_MODE": "dev",
+		"LANGDECK_DEMO_MODE": "true", "LANGDECK_DATABASE_URL": "postgres://x", "LANGDECK_PUBLIC_URL": "https://x.io"})); err == nil {
+		t.Fatal("demo mode must be rejected in production")
+	}
+}

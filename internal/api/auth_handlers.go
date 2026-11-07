@@ -7,10 +7,11 @@ import (
 	"github.com/rojinebrahimi/langdeck/internal/auth"
 	"github.com/rojinebrahimi/langdeck/internal/domain"
 	"github.com/rojinebrahimi/langdeck/internal/server"
+	"github.com/rojinebrahimi/langdeck/internal/util"
 )
 
 func (a *API) authInfo(w http.ResponseWriter, _ *http.Request) {
-	info := map[string]any{"mode": a.Cfg.AuthMode}
+	info := map[string]any{"mode": a.Cfg.AuthMode, "demo": a.Cfg.DemoMode}
 	if a.Cfg.AuthMode == "local" && a.Cfg.AdminPassword == "admin" {
 		// The well-known default is configured; the UI shows a first-login hint.
 		// It only works until changed when ForcePasswordChange is on.
@@ -77,6 +78,10 @@ func (a *API) devLogin(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusNotFound, "dev login is disabled")
 		return
 	}
+	if a.Cfg.DemoMode {
+		a.demoLogin(w, r)
+		return
+	}
 	var body struct {
 		Email string `json:"email"`
 		Name  string `json:"name"`
@@ -99,6 +104,25 @@ func (a *API) devLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := a.Auth.StartSession(w, r, u, a.Cfg.SessionTTL, server.ClientIP(r.Context())); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	writeJSON(w, 200, u)
+}
+
+// demoLogin signs a public-demo visitor in under a random, anonymous identity.
+// Nothing from the request is used: whatever a visitor types never becomes visible
+// to other visitors, and the operator role keeps them out of users, keys and audit.
+func (a *API) demoLogin(w http.ResponseWriter, r *http.Request) {
+	tag := util.RandomToken(6)[:6]
+	tag = strings.ToLower(strings.NewReplacer("-", "x", "_", "y").Replace(tag))
+	u, err := a.Store.UpsertUserOnLogin(r.Context(), "demo|"+util.NewID(), "visitor-"+tag+"@demo.invalid",
+		"Visitor "+tag, domain.RoleOperator)
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	if err := a.Auth.StartSession(w, r, u, a.Cfg.SessionTTL, ""); err != nil {
 		a.fail(w, r, err)
 		return
 	}

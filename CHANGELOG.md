@@ -18,6 +18,13 @@ pip install langdeck              # or: pip install "langdeck[langgraph]"
 - PyPI project links (source, issues, changelog, demo), Python version classifiers and a `py.typed`
   marker, so type checkers use the SDK's annotations.
 
+### Security
+- **Public demo no longer exposes visitors.** The demo asked for an email and made every visitor an
+  admin, so anyone could list other visitors' emails under Users and their IP addresses in the
+  audit log. A new demo mode (`LANGDECK_DEMO_MODE=true`) signs visitors in with one click under a
+  random anonymous identity and the operator role, never stores IP addresses, and keeps visitors
+  out of users, API keys and the audit log. It is refused in production.
+
 ### Changed
 - CI builds the sdist and wheel and runs `twine check --strict` on every push.
 - Releases refuse to publish the SDK when its version differs from the tag.

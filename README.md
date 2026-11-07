@@ -134,7 +134,7 @@ make build && ./bin/langdeck serve                             # single static b
 ```
 
 Prefer to look before you install? **[langdeck-demo.onrender.com](https://langdeck-demo.onrender.com)**
-runs the demo agent on a free instance (sign in with any email; may take ~30 s to wake up).
+runs the demo agent on a free instance (one click, anonymous, no sign-up; may take ~30 s to wake up).
 It is demo-only — dev sign-in, no persistence — so don't put real data there.
 (Its blueprint lives in [`render.yaml`](render.yaml) if you want a throwaway instance.)
 

@@ -26,7 +26,8 @@ export function LoginPage() {
     setBusy(true);
     setErr(null);
     try {
-      await api("/auth/dev-login", { method: "POST", body: { email } });
+      // In demo mode the server ignores the body and assigns an anonymous visitor identity.
+      await api("/auth/dev-login", { method: "POST", body: info.data?.demo ? {} : { email } });
       await qc.invalidateQueries();
       window.location.assign("/");
     } catch (e) {
@@ -88,7 +89,24 @@ export function LoginPage() {
               )}
             </form>
           )}
-          {info.data?.mode === "dev" && (
+          {info.data?.mode === "dev" && info.data.demo && (
+            <form onSubmit={devLogin} className="space-y-4">
+              <p className="text-sm text-ink-200">
+                Explore a live LangDeck with a demo agent streaming runs. You can start runs, approve requests and
+                push config.
+              </p>
+              <ul className="space-y-1 text-xs text-ink-400">
+                <li>• No sign-up: you get an anonymous visitor identity.</li>
+                <li>• Everything you do is visible to other visitors and resets regularly.</li>
+                <li>• Don't enter real or sensitive data.</li>
+              </ul>
+              <ErrorBox error={err} />
+              <button type="submit" className="btn-primary w-full" disabled={busy}>
+                {busy ? <Spinner className="text-white" /> : "Enter the demo"}
+              </button>
+            </form>
+          )}
+          {info.data?.mode === "dev" && !info.data.demo && (
             <form onSubmit={devLogin} className="space-y-4">
               <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 px-3 py-2 text-xs text-amber-200">
                 Development mode: any email signs in as admin. Configure OIDC before exposing LangDeck.

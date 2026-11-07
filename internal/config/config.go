@@ -23,7 +23,10 @@ type Config struct {
 	DatabaseURL string
 	DBMaxConns  int32
 
-	AuthMode            string // "local", "oidc" or "dev"
+	AuthMode string // "local", "oidc" or "dev"
+	// DemoMode hardens dev sign-in for a public demo: visitors get an anonymous
+	// identity (no email is collected), the operator role, and no IP is stored.
+	DemoMode            bool
 	AdminUsername       string
 	AdminPassword       string
 	ForcePasswordChange bool
@@ -80,6 +83,7 @@ func load(get func(string) string) (*Config, error) {
 		DatabaseURL:          e.str("LANGDECK_DATABASE_URL", ""),
 		DBMaxConns:           e.int32Range("LANGDECK_DB_MAX_CONNS", 20, 1, 1000),
 		AuthMode:             e.str("LANGDECK_AUTH_MODE", "local"),
+		DemoMode:             e.bool("LANGDECK_DEMO_MODE", false),
 		AdminUsername:        e.str("LANGDECK_ADMIN_USERNAME", "admin"),
 		AdminPassword:        e.str("LANGDECK_ADMIN_PASSWORD", "admin"),
 		ForcePasswordChange:  e.bool("LANGDECK_ADMIN_FORCE_PASSWORD_CHANGE", true),
@@ -144,6 +148,14 @@ func (c *Config) validate() error {
 		}
 	default:
 		bad("LANGDECK_AUTH_MODE must be local, oidc or dev")
+	}
+	if c.DemoMode {
+		if c.AuthMode != "dev" {
+			bad("LANGDECK_DEMO_MODE needs LANGDECK_AUTH_MODE=dev")
+		}
+		if c.Production() {
+			bad("LANGDECK_DEMO_MODE is not allowed when LANGDECK_ENV=production")
+		}
 	}
 	switch c.DefaultRole {
 	case "viewer", "operator", "admin":

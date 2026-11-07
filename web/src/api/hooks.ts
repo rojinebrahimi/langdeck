@@ -10,7 +10,7 @@ export const useMe = (enabled = true) =>
   useQuery({ queryKey: ["me"], queryFn: () => api<Me>("/api/v1/me"), retry: false, staleTime: 60_000, enabled });
 
 export const useAuthInfo = () =>
-  useQuery({ queryKey: ["auth-info"], queryFn: () => api<{ mode: AuthMode; default_credentials?: string }>("/api/v1/auth/info") });
+  useQuery({ queryKey: ["auth-info"], queryFn: () => api<{ mode: AuthMode; demo?: boolean; default_credentials?: string }>("/api/v1/auth/info") });
 
 export const useStats = () => useQuery({ queryKey: ["stats"], queryFn: () => api<Stats>("/api/v1/stats"), refetchInterval: 30_000 });
 
