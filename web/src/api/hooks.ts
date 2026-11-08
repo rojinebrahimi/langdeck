@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
 import { api } from "./client";
 import type {
   AuthMode,
@@ -14,8 +14,29 @@ export const useAuthInfo = () =>
 
 export const useStats = () => useQuery({ queryKey: ["stats"], queryFn: () => api<Stats>("/api/v1/stats"), refetchInterval: 30_000 });
 
+/** Every agent (up to 500), for pickers such as the Runs filter. Lists use useAgentsPage. */
 export const useAgents = () =>
-  useQuery({ queryKey: ["agents"], queryFn: () => api<{ agents: Agent[] }>("/api/v1/agents").then((r) => r.agents), refetchInterval: 20_000 });
+  useQuery({ queryKey: ["agents", "all"], queryFn: () => api<AgentPage>("/api/v1/agents?limit=500").then((r) => r.agents), refetchInterval: 20_000 });
+
+export interface AgentPage { agents: Agent[]; total: number; next_after: string | null }
+export interface AgentPageQuery { q?: string; status?: string; after?: string; limit?: number }
+
+/** One page of agents, keyset-paginated by name. Keeps the previous page on screen while the next loads. */
+export const useAgentsPage = (f: AgentPageQuery) => {
+  const qs = toQuery(f);
+  return useQuery({
+    queryKey: ["agents", "page", f],
+    queryFn: () => api<AgentPage>(`/api/v1/agents?${qs}`),
+    placeholderData: keepPreviousData,
+    refetchInterval: 20_000,
+  });
+};
+
+function toQuery(f: object) {
+  return new URLSearchParams(
+    Object.entries(f).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]),
+  );
+}
 
 export const useAgent = (id: string) =>
   useQuery({ queryKey: ["agents", id], queryFn: () => api<{ agent: Agent; config: AgentConfig | null }>(`/api/v1/agents/${id}`), enabled: !!id });
@@ -26,7 +47,18 @@ export const useAgentConfigs = (id: string) =>
 export const useAgentCommands = (id: string) =>
   useQuery({ queryKey: ["agents", id, "commands"], queryFn: () => api<{ commands: Command[] }>(`/api/v1/agents/${id}/commands`).then((r) => r.commands) });
 
-export interface RunFilters { agent_id?: string; status?: string; limit?: number }
+export interface RunFilters { agent_id?: string; status?: string; limit?: number; before?: string }
+export interface RunPage { runs: Run[]; next_before: string | null }
+
+/** One page of runs, newest first, keyset-paginated by creation time. */
+export const useRunsPage = (f: RunFilters) => {
+  const qs = toQuery(f);
+  return useQuery({
+    queryKey: ["runs", "page", f],
+    queryFn: () => api<RunPage>(`/api/v1/runs?${qs}`),
+    placeholderData: keepPreviousData,
+  });
+};
 
 export const useRuns = (f: RunFilters = {}) => {
   const qs = new URLSearchParams(Object.entries(f).filter(([, v]) => v !== undefined && v !== "").map(([k, v]) => [k, String(v)]));

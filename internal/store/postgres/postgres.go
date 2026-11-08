@@ -285,6 +285,54 @@ func (s *Store) ListAgents(ctx context.Context) ([]domain.Agent, error) {
 	return collect(rows, scanAgent)
 }
 
+func (s *Store) ListAgentsPage(ctx context.Context, f store.AgentFilter) (*store.AgentPage, error) {
+	where, args := []string{"TRUE"}, []any{}
+	arg := func(v any) string { args = append(args, v); return fmt.Sprintf("$%d", len(args)) }
+	if q := strings.TrimSpace(f.Query); q != "" {
+		p := arg("%" + likeEscape(q) + "%")
+		where = append(where, "(name ILIKE "+p+" OR description ILIKE "+p+")")
+	}
+	if f.Status != "" {
+		// Mirrors domain.Agent.ComputeStatus.
+		fresh := "(last_heartbeat IS NOT NULL AND last_heartbeat >= " + arg(f.Now.Add(-domain.HeartbeatTTL)) + ")"
+		switch f.Status {
+		case domain.AgentOffline:
+			where = append(where, "NOT "+fresh)
+		case domain.AgentPaused:
+			where = append(where, fresh+" AND desired_state = 'paused'")
+		case domain.AgentOnline:
+			where = append(where, fresh+" AND desired_state <> 'paused'")
+		default:
+			return nil, fmt.Errorf("%w: unknown agent status %q", domain.ErrInvalid, f.Status)
+		}
+	}
+	cond := strings.Join(where, " AND ")
+	page := &store.AgentPage{}
+	if err := s.pool.QueryRow(ctx, `SELECT count(*) FROM agents WHERE `+cond, args...).Scan(&page.Total); err != nil {
+		return nil, err
+	}
+	pageCond := cond
+	if f.After != "" {
+		pageCond += " AND name > " + arg(f.After)
+	}
+	limit := arg(store.ClampLimit(f.Limit, 24, store.MaxAgentPage))
+	rows, err := s.pool.Query(ctx, `SELECT `+agentCols+` FROM agents WHERE `+pageCond+` ORDER BY name LIMIT `+limit, args...)
+	if err != nil {
+		return nil, err
+	}
+	list, err := collect(rows, scanAgent)
+	if err != nil {
+		return nil, err
+	}
+	page.Agents = list
+	return page, nil
+}
+
+// likeEscape makes user input literal inside a LIKE pattern.
+func likeEscape(s string) string {
+	return strings.NewReplacer(`\`, `\\`, "%", `\%`, "_", `\_`).Replace(s)
+}
+
 func (s *Store) SetAgentDesiredState(ctx context.Context, id string, st domain.DesiredState) error {
 	return affected(s.pool.Exec(ctx, `UPDATE agents SET desired_state = $2, updated_at = now() WHERE id = $1`, id, st))
 }

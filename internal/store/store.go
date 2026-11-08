@@ -19,6 +19,25 @@ type RunFilter struct {
 	Limit    int
 }
 
+// AgentFilter narrows and pages ListAgentsPage. Zero values mean "no filter".
+type AgentFilter struct {
+	Query  string             // case-insensitive substring of the name or description
+	Status domain.AgentStatus // online, paused or offline, evaluated at Now
+	After  string             // cursor: only agents whose name sorts strictly after this
+	Limit  int
+	Now    time.Time // reference time for Status; required when Status is set
+}
+
+// MaxAgentPage caps a single ListAgentsPage call. It is one above the API's
+// largest page (500) so the API can fetch a look-ahead row and know whether more exist.
+const MaxAgentPage = 501
+
+// AgentPage is one page of agents plus the number matching the filter across all pages.
+type AgentPage struct {
+	Agents []domain.Agent
+	Total  int
+}
+
 // AgentRegistration is what an SDK instance reports when it starts.
 type AgentRegistration struct {
 	Name        string
@@ -67,6 +86,8 @@ type Store interface {
 	GetAgent(ctx context.Context, id string) (*domain.Agent, error)
 	GetAgentByName(ctx context.Context, name string) (*domain.Agent, error)
 	ListAgents(ctx context.Context) ([]domain.Agent, error)
+	// ListAgentsPage returns agents ordered by name, keyset-paginated by name.
+	ListAgentsPage(ctx context.Context, f AgentFilter) (*AgentPage, error)
 	SetAgentDesiredState(ctx context.Context, id string, st domain.DesiredState) error
 	DeleteAgent(ctx context.Context, id string) error
 

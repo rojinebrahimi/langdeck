@@ -92,7 +92,7 @@ describe("ChangePasswordForm", () => {
 
 describe("AgentsPage", () => {
   it("shows onboarding help when no agent is connected", async () => {
-    mockApi([me(), { match: /\/api\/v1\/agents$/, body: { agents: [] } }]);
+    mockApi([me(), { match: /\/api\/v1\/agents\?/, body: { agents: [], total: 0, next_after: null } }]);
     renderPage(<AgentsPage />);
     expect(await screen.findByText(/no agents connected yet/i)).toBeInTheDocument();
     expect(screen.getByText(/deck.instrument/)).toBeInTheDocument();
@@ -102,8 +102,8 @@ describe("AgentsPage", () => {
     mockApi([
       me(),
       {
-        match: /\/api\/v1\/agents$/,
-        body: { agents: [{ id: "a1", name: "support-bot", description: "Answers tickets", version: "2.0", framework: "langgraph", labels: { team: "cx" }, desired_state: "running", status: "online", instances: 3, sdk_version: "0.1.0", last_heartbeat: new Date().toISOString(), created_at: "", updated_at: "" }] },
+        match: /\/api\/v1\/agents\?/,
+        body: { total: 1, next_after: null, agents: [{ id: "a1", name: "support-bot", description: "Answers tickets", version: "2.0", framework: "langgraph", labels: { team: "cx" }, desired_state: "running", status: "online", instances: 3, sdk_version: "0.1.0", last_heartbeat: new Date().toISOString(), created_at: "", updated_at: "" }] },
       },
     ]);
     renderPage(<AgentsPage />);
@@ -122,5 +122,56 @@ describe("GuidePage", () => {
     expect(screen.getByRole("heading", { name: /roles, keys and accounts/i })).toBeInTheDocument();
     const link = screen.getByRole("link", { name: /full guide/i });
     expect(link).toHaveAttribute("href", expect.stringContaining("docs/user-guide.md"));
+  });
+});
+
+const agentRow = (name: string, status = "online") => ({
+  id: "id-" + name, name, description: "", version: "1", framework: "langgraph", labels: {}, desired_state: "running",
+  status, instances: 1, sdk_version: "0.1.2", last_heartbeat: new Date().toISOString(), created_at: "", updated_at: "",
+});
+
+describe("AgentsPage pagination", () => {
+  it("pages with the server cursor and goes back", async () => {
+    const calls = mockApi([
+      me(),
+      { match: /\/api\/v1\/agents\?.*after=agent-b/, body: { agents: [agentRow("agent-c")], total: 3, next_after: null } },
+      { match: /\/api\/v1\/agents\?/, body: { agents: [agentRow("agent-a"), agentRow("agent-b")], total: 3, next_after: "agent-b" } },
+    ]);
+    renderPage(<AgentsPage />);
+    expect(await screen.findByText("agent-a")).toBeInTheDocument();
+    expect(screen.getByText(/of 3 agents/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /previous page/i })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: /next page/i }));
+    expect(await screen.findByText("agent-c")).toBeInTheDocument();
+    expect(calls.some((c) => c.url.includes("after=agent-b"))).toBe(true);
+    expect(screen.getByRole("button", { name: /next page/i })).toBeDisabled();
+
+    await userEvent.click(screen.getByRole("button", { name: /previous page/i }));
+    expect(await screen.findByText("agent-a")).toBeInTheDocument();
+  });
+
+  it("searches and filters by status on the server", async () => {
+    const calls = mockApi([
+      me(),
+      { match: /\/api\/v1\/agents\?/, body: { agents: [agentRow("billing-bot", "paused")], total: 1, next_after: null } },
+    ]);
+    renderPage(<AgentsPage />);
+    await screen.findByText("billing-bot");
+    await userEvent.type(screen.getByPlaceholderText(/search by name/i), "billing");
+    await waitFor(() => expect(calls.some((c) => c.url.includes("q=billing"))).toBe(true));
+    await userEvent.click(screen.getByRole("button", { name: "Paused" }));
+    await waitFor(() => expect(calls.some((c) => c.url.includes("status=paused") && c.url.includes("q=billing"))).toBe(true));
+    expect(screen.getByRole("button", { name: "Paused" })).toHaveAttribute("aria-pressed", "true");
+    // A single page shows a count instead of pager buttons.
+    expect(screen.queryByRole("button", { name: /next page/i })).not.toBeInTheDocument();
+    expect(screen.getByText("1 agent")).toBeInTheDocument();
+  });
+
+  it("says nothing matched instead of showing onboarding when filters are active", async () => {
+    mockApi([me(), { match: /\/api\/v1\/agents\?/, body: { agents: [], total: 0, next_after: null } }]);
+    renderPage(<AgentsPage />, "/agents?status=offline");
+    expect(await screen.findByText(/no agents match/i)).toBeInTheDocument();
+    expect(screen.queryByText(/no agents connected yet/i)).not.toBeInTheDocument();
   });
 });

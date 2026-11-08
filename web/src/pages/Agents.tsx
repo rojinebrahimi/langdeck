@@ -1,17 +1,92 @@
-import { Link } from "react-router-dom";
-import { Bot, Cpu, Tag } from "lucide-react";
-import { useAgents } from "../api/hooks";
+import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
+import clsx from "clsx";
+import { Bot, Cpu, Search, Tag } from "lucide-react";
+import { useAgentsPage } from "../api/hooks";
 import { Empty, ErrorBox, Loading, PageHeader, StatusBadge } from "../components/ui";
+import { Pager, useCursorPager } from "../components/Pager";
 import { timeAgo } from "../lib/format";
 
+export const AGENTS_PAGE_SIZE = 24;
+const statusFilters = [
+  { id: "", label: "All" },
+  { id: "online", label: "Online" },
+  { id: "paused", label: "Paused" },
+  { id: "offline", label: "Offline" },
+] as const;
+
 export function AgentsPage() {
-  const { data, isLoading, error } = useAgents();
-  if (isLoading) return <Loading />;
+  const [params, setParams] = useSearchParams();
+  const q = params.get("q") ?? "";
+  const status = params.get("status") ?? "";
+  const [search, setSearch] = useState(q);
+  const pager = useCursorPager();
+  const { reset } = pager;
+
+  // Debounce typing into the URL; any filter change starts again at page 1.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      if (search.trim() === q) return;
+      const next = new URLSearchParams(params);
+      if (search.trim()) next.set("q", search.trim());
+      else next.delete("q");
+      setParams(next, { replace: true });
+    }, 250);
+    return () => clearTimeout(id);
+  }, [search, q, params, setParams]);
+  useEffect(() => reset(), [q, status, reset]);
+
+  const setStatus = (s: string) => {
+    const next = new URLSearchParams(params);
+    if (s) next.set("status", s);
+    else next.delete("status");
+    setParams(next, { replace: true });
+  };
+
+  const { data: page, isLoading, isFetching, error } = useAgentsPage({ q, status, after: pager.cursor, limit: AGENTS_PAGE_SIZE });
+  const agents = page?.agents ?? [];
+  const filtered = !!(q || status);
+
   return (
     <>
       <PageHeader title="Agents" subtitle="Every LangGraph application connected through the LangDeck SDK." />
+      <div className="mb-5 flex flex-wrap items-center gap-3">
+        <label className="relative min-w-56 flex-1 sm:max-w-sm">
+          <span className="sr-only">Search agents</span>
+          <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-ink-400" />
+          <input
+            type="search"
+            className="input pl-9"
+            placeholder="Search by name or description"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </label>
+        <div role="group" aria-label="Filter by status" className="inline-flex rounded-xl border border-ink-700 bg-ink-850 p-1">
+          {statusFilters.map((s) => (
+            <button
+              key={s.id}
+              type="button"
+              aria-pressed={status === s.id}
+              onClick={() => setStatus(s.id)}
+              className={clsx(
+                "rounded-lg px-3 py-1.5 text-sm font-medium transition",
+                status === s.id ? "bg-brand-500/20 text-white ring-1 ring-brand-400/30" : "text-ink-300 hover:text-white",
+              )}
+            >
+              {s.label}
+            </button>
+          ))}
+        </div>
+      </div>
       <ErrorBox error={error} />
-      {!data?.length ? (
+      {isLoading ? (
+        <Loading />
+      ) : !agents.length && filtered ? (
+        <div className="card">
+          <Empty icon={<Search className="h-6 w-6" />} title="No agents match" hint="Try another search or status filter." />
+        </div>
+      ) : !agents.length ? (
         <div className="card">
           <Empty
             icon={<Bot className="h-6 w-6" />}
@@ -27,8 +102,8 @@ deck.start()`}</pre>
           />
         </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {data.map((a) => (
+        <div className={clsx("grid grid-cols-1 gap-4 transition-opacity md:grid-cols-2 xl:grid-cols-3", isFetching && "opacity-70")}>
+          {agents.map((a) => (
             <Link key={a.id} to={`/agents/${a.id}`} className="card group p-5 transition hover:border-brand-500/50 hover:shadow-lg hover:shadow-brand-900/20">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
@@ -51,6 +126,22 @@ deck.start()`}</pre>
             </Link>
           ))}
         </div>
+      )}
+      {!isLoading && (
+        <Pager
+          page={pager.page}
+          pageSize={AGENTS_PAGE_SIZE}
+          shown={agents.length}
+          total={page?.total}
+          nextCursor={page?.next_after}
+          onNext={(c) => {
+            pager.next(c);
+            window.scrollTo?.({ top: 0, behavior: "smooth" });
+          }}
+          onPrev={pager.prev}
+          busy={isFetching}
+          noun={page?.total === 1 ? "agent" : "agents"}
+        />
       )}
     </>
   );

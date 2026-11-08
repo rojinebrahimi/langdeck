@@ -326,6 +326,32 @@ func (s *Store) ListAgents(context.Context) ([]domain.Agent, error) {
 	return out, nil
 }
 
+func (s *Store) ListAgentsPage(ctx context.Context, f store.AgentFilter) (*store.AgentPage, error) {
+	all, err := s.ListAgents(ctx) // sorted by name
+	if err != nil {
+		return nil, err
+	}
+	q := strings.ToLower(strings.TrimSpace(f.Query))
+	limit := store.ClampLimit(f.Limit, 24, store.MaxAgentPage)
+	page := &store.AgentPage{Agents: []domain.Agent{}}
+	for _, a := range all {
+		if q != "" && !strings.Contains(strings.ToLower(a.Name), q) && !strings.Contains(strings.ToLower(a.Description), q) {
+			continue
+		}
+		if f.Status != "" {
+			a.ComputeStatus(f.Now)
+			if a.Status != f.Status {
+				continue
+			}
+		}
+		page.Total++
+		if a.Name > f.After && len(page.Agents) < limit {
+			page.Agents = append(page.Agents, a)
+		}
+	}
+	return page, nil
+}
+
 func (s *Store) SetAgentDesiredState(_ context.Context, id string, st domain.DesiredState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()

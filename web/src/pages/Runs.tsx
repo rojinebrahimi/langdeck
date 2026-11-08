@@ -1,7 +1,12 @@
+import { useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { useAgents, useRuns } from "../api/hooks";
+import clsx from "clsx";
+import { useAgents, useRunsPage } from "../api/hooks";
 import { RunsTable } from "../components/RunsTable";
+import { Pager, useCursorPager } from "../components/Pager";
 import { ErrorBox, Loading, PageHeader } from "../components/ui";
+
+export const RUNS_PAGE_SIZE = 50;
 
 const statuses = ["", "pending", "running", "interrupted", "succeeded", "failed", "cancelled"];
 
@@ -10,7 +15,10 @@ export function RunsPage() {
   const agent_id = params.get("agent_id") ?? "";
   const status = params.get("status") ?? "";
   const agents = useAgents();
-  const runs = useRuns({ agent_id, status, limit: 100 });
+  const pager = useCursorPager();
+  const { reset } = pager;
+  useEffect(() => reset(), [agent_id, status, reset]);
+  const runs = useRunsPage({ agent_id, status, limit: RUNS_PAGE_SIZE, before: pager.cursor });
   const set = (k: string, v: string) => {
     const next = new URLSearchParams(params);
     if (v) next.set(k, v);
@@ -30,7 +38,24 @@ export function RunsPage() {
         </select>
       </div>
       <ErrorBox error={runs.error} />
-      <div className="card overflow-hidden">{runs.isLoading ? <Loading /> : <RunsTable runs={runs.data} />}</div>
+      <div className={clsx("card overflow-hidden transition-opacity", runs.isFetching && !runs.isLoading && "opacity-70")}>
+        {runs.isLoading ? <Loading /> : <RunsTable runs={runs.data?.runs} />}
+      </div>
+      {!runs.isLoading && (
+        <Pager
+          page={pager.page}
+          pageSize={RUNS_PAGE_SIZE}
+          shown={runs.data?.runs.length ?? 0}
+          nextCursor={runs.data?.next_before}
+          onNext={(c) => {
+            pager.next(c);
+            window.scrollTo?.({ top: 0, behavior: "smooth" });
+          }}
+          onPrev={pager.prev}
+          busy={runs.isFetching}
+          noun="runs"
+        />
+      )}
     </>
   );
 }

@@ -13,7 +13,7 @@ keys can only use the agent API.
 | GET | `/me` | viewer | Current principal and CSRF token |
 | GET | `/stats` | viewer | Dashboard summary (last 24h) |
 | GET | `/stream` | viewer | Server-Sent Events: `agent.updated`, `run.updated`, `interrupt.updated`, `command.created` |
-| GET | `/agents` | viewer | List agents with derived status |
+| GET | `/agents?q=&status=&after=&limit=` | viewer | List agents by name with derived status. `q` searches name and description, `status` is `online`, `paused` or `offline`, `limit` defaults to 24 (max 500). Returns `total` and `next_after`, the cursor for the next page (`null` on the last page) |
 | GET | `/agents/{id}` | viewer | Agent with graph and current config |
 | GET | `/agents/{id}/configs` | viewer | Config versions, newest first |
 | GET | `/agents/{id}/commands` | viewer | Recent commands and their delivery status |

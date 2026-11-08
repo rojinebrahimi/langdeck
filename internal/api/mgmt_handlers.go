@@ -30,18 +30,51 @@ func (a *API) stats(w http.ResponseWriter, r *http.Request) {
 
 // ---- agents ----
 
+// listAgents pages agents by name: ?q= searches name and description, ?status=
+// is online|paused|offline, ?limit= (default 24, max 500) and ?after=<name> is the
+// cursor from the previous page's next_after.
 func (a *API) listAgents(w http.ResponseWriter, r *http.Request) {
-	list, err := a.Store.ListAgents(r.Context())
+	q := r.URL.Query()
+	now := a.Now()
+	f := store.AgentFilter{Query: q.Get("q"), Status: domain.AgentStatus(q.Get("status")), After: q.Get("after"), Now: now}
+	switch f.Status {
+	case "", domain.AgentOnline, domain.AgentPaused, domain.AgentOffline:
+	default:
+		writeError(w, http.StatusBadRequest, "status must be online, paused or offline")
+		return
+	}
+	if len(f.Query) > 128 || len(f.After) > 128 {
+		writeError(w, http.StatusBadRequest, "q and after must be at most 128 characters")
+		return
+	}
+	if l := q.Get("limit"); l != "" {
+		n, err := strconv.Atoi(l)
+		if err != nil || n < 1 {
+			writeError(w, http.StatusBadRequest, "limit must be a positive integer")
+			return
+		}
+		f.Limit = n
+	}
+	limit := store.ClampLimit(f.Limit, 24, 500)
+	f.Limit = limit + 1 // one look-ahead row tells us whether another page exists
+	page, err := a.Store.ListAgentsPage(r.Context(), f)
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
-	now := a.Now()
-	for i := range list {
-		list[i].ComputeStatus(now)
-		list[i].Graph = nil // the list view does not need topology; keeps responses small
+	more := len(page.Agents) > limit
+	if more {
+		page.Agents = page.Agents[:limit]
 	}
-	writeJSON(w, 200, map[string]any{"agents": list})
+	for i := range page.Agents {
+		page.Agents[i].ComputeStatus(now)
+		page.Agents[i].Graph = nil // the list view does not need topology; keeps responses small
+	}
+	resp := map[string]any{"agents": page.Agents, "total": page.Total, "next_after": nil}
+	if more {
+		resp["next_after"] = page.Agents[len(page.Agents)-1].Name
+	}
+	writeJSON(w, 200, resp)
 }
 
 func (a *API) loadAgent(w http.ResponseWriter, r *http.Request) (*domain.Agent, bool) {

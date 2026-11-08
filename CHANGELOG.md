@@ -5,6 +5,17 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Added
+- **Agent pagination.** `GET /api/v1/agents` is keyset-paginated by name (`limit`, `after`,
+  `next_after`) and returns `total`, with server-side search (`q`, name and description) and a
+  `status` filter (`online`, `paused`, `offline`). The Agents page has a search box, status filter
+  and Previous/Next pager, with filters kept in the URL.
+- The Runs page pages through history (it previously stopped at the newest 100 runs).
+
+### Changed
+- `GET /api/v1/agents` returns 24 agents by default; pass `limit` (up to 500) or follow
+  `next_after` to get more.
+
 ## [0.1.2] - 2026-11-07
 
 The Python SDK is now on PyPI:

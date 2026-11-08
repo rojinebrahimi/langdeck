@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -19,6 +20,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	t.Run("sessions", func(t *testing.T) { testSessions(t, newStore(t)) })
 	t.Run("api_keys", func(t *testing.T) { testKeys(t, newStore(t)) })
 	t.Run("agents", func(t *testing.T) { testAgents(t, newStore(t)) })
+	t.Run("agent_pages", func(t *testing.T) { testAgentPages(t, newStore(t)) })
 	t.Run("configs", func(t *testing.T) { testConfigs(t, newStore(t)) })
 	t.Run("runs_and_events", func(t *testing.T) { testRuns(t, newStore(t)) })
 	t.Run("commands", func(t *testing.T) { testCommands(t, newStore(t)) })
@@ -134,6 +136,85 @@ func testAgents(t *testing.T, s store.Store) {
 	must(t, s.DeleteAgent(ctx, a.ID))
 	if _, err := s.GetAgent(ctx, a.ID); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("want ErrNotFound after delete, got %v", err)
+	}
+}
+
+func testAgentPages(t *testing.T, s store.Store) {
+	n := now()
+	for _, name := range []string{"billing-bot", "research-agent", "support-bot", "zeta"} {
+		agent(t, s, name)
+	}
+	_, err := s.RegisterAgent(ctx, store.AgentRegistration{Name: "triage_100", Description: "Routes 100% of inbound tickets"}, n)
+	must(t, err)
+	// Two agents go quiet; one of them is paused. One live agent is paused too.
+	stale := n.Add(-2 * domain.HeartbeatTTL)
+	z, _ := s.GetAgentByName(ctx, "zeta")
+	r, _ := s.GetAgentByName(ctx, "research-agent")
+	sup, _ := s.GetAgentByName(ctx, "support-bot")
+	must(t, s.Heartbeat(ctx, z.ID, 1, stale))
+	must(t, s.Heartbeat(ctx, r.ID, 1, stale))
+	must(t, s.SetAgentDesiredState(ctx, r.ID, domain.DesiredPaused))
+	must(t, s.SetAgentDesiredState(ctx, sup.ID, domain.DesiredPaused))
+
+	names := func(p *store.AgentPage) []string {
+		out := []string{}
+		for _, a := range p.Agents {
+			out = append(out, a.Name)
+		}
+		return out
+	}
+	eq := func(got []string, want ...string) {
+		t.Helper()
+		if strings.Join(got, ",") != strings.Join(want, ",") {
+			t.Fatalf("got %v, want %v", got, want)
+		}
+	}
+
+	// Keyset pages walk every agent exactly once, in name order.
+	p1, err := s.ListAgentsPage(ctx, store.AgentFilter{Limit: 2})
+	must(t, err)
+	eq(names(p1), "billing-bot", "research-agent")
+	if p1.Total != 5 {
+		t.Fatalf("total must count all matches, got %d", p1.Total)
+	}
+	p2, _ := s.ListAgentsPage(ctx, store.AgentFilter{Limit: 2, After: "research-agent"})
+	eq(names(p2), "support-bot", "triage_100")
+	p3, _ := s.ListAgentsPage(ctx, store.AgentFilter{Limit: 2, After: "triage_100"})
+	eq(names(p3), "zeta")
+	if p3.Total != 5 {
+		t.Fatalf("total must ignore the cursor, got %d", p3.Total)
+	}
+
+	// Search is case-insensitive and treats LIKE wildcards literally.
+	q, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "BOT"})
+	eq(names(q), "billing-bot", "support-bot")
+	desc, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "inbound"})
+	eq(names(desc), "triage_100") // matches the description
+	pct, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "100%"})
+	eq(names(pct), "triage_100")
+	// "_" and "%" are literal: "e_1" matches "triage_100" only, not every "e?1".
+	under, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "e_1"})
+	eq(names(under), "triage_100")
+	wild, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "g%t"})
+	eq(names(wild))
+
+	// Status follows ComputeStatus: a stale heartbeat is offline even when paused.
+	on, _ := s.ListAgentsPage(ctx, store.AgentFilter{Status: domain.AgentOnline, Now: n})
+	eq(names(on), "billing-bot", "triage_100")
+	paused, _ := s.ListAgentsPage(ctx, store.AgentFilter{Status: domain.AgentPaused, Now: n})
+	eq(names(paused), "support-bot")
+	off, _ := s.ListAgentsPage(ctx, store.AgentFilter{Status: domain.AgentOffline, Now: n})
+	eq(names(off), "research-agent", "zeta")
+	if off.Total != 2 {
+		t.Fatalf("offline total: %d", off.Total)
+	}
+	combo, _ := s.ListAgentsPage(ctx, store.AgentFilter{Query: "bot", Status: domain.AgentPaused, Now: n})
+	eq(names(combo), "support-bot")
+
+	empty, err := s.ListAgentsPage(ctx, store.AgentFilter{Query: "nothing-matches"})
+	must(t, err)
+	if empty.Agents == nil || len(empty.Agents) != 0 || empty.Total != 0 {
+		t.Fatalf("an empty page must be an empty, non-nil list: %+v", empty)
 	}
 }
 
