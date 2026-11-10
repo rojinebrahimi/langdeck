@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pause, Play, Rocket, Save, Trash2 } from "lucide-react";
-import { useAction, useAgent, useAgentCommands, useAgentConfigs, useRuns } from "../api/hooks";
+import { useAction, useAgent, useAgentCommands, useAgentGraph, useAgentConfigs, useRuns } from "../api/hooks";
 import { api } from "../api/client";
-import type { Run } from "../api/types";
+import type { Agent, Run } from "../api/types";
+import { Link } from "react-router-dom";
+import { AccessModes } from "../components/AccessModes";
 import { GraphView } from "../components/GraphView";
 import { RunsTable } from "../components/RunsTable";
 import { Can, ErrorBox, JsonView, Loading, Modal, PageHeader, StatusBadge, Tabs, useCan } from "../components/ui";
 import { pretty, timeAgo } from "../lib/format";
 
-type Tab = "graph" | "runs" | "config" | "commands";
+type Tab = "graph" | "access" | "runs" | "config" | "commands";
 
 function parseJSON(text: string): { ok: true; value: unknown } | { ok: false; error: string } {
   try {
@@ -102,6 +104,50 @@ function ConfigTab({ agentId, current }: { agentId: string; current?: Record<str
   );
 }
 
+function AccessTab({ agent }: { agent: Agent }) {
+  const graph = useAgentGraph();
+  const idOf = (name: string) => graph.data?.nodes.find((n) => n.name === name && n.registered)?.id;
+  const usedBy = graph.data?.edges.filter((e) => e.target === agent.name).map((e) => e.source) ?? [];
+  const agentLink = (name: string) => {
+    const id = idOf(name);
+    return id ? <Link to={`/agents/${id}`} className="text-brand-300 hover:underline">{name}</Link> : <span title="Not registered yet">{name}</span>;
+  };
+  const chips = (names: string[], empty: string) =>
+    names.length ? (
+      <ul className="flex flex-wrap gap-2">
+        {names.map((n) => <li key={n} className="rounded-lg border border-ink-700 bg-ink-900 px-2.5 py-1 font-mono text-xs">{agentLink(n)}</li>)}
+      </ul>
+    ) : <p className="text-sm text-ink-400">{empty}</p>;
+  return (
+    <div className="space-y-6">
+      <div className="card overflow-x-auto">
+        <table className="w-full min-w-[560px]">
+          <thead className="border-b border-ink-800"><tr><th className="table-head">Resource</th><th className="table-head">Access</th><th className="table-head">Why</th></tr></thead>
+          <tbody className="divide-y divide-ink-800">
+            {agent.accesses.map((x) => (
+              <tr key={x.resource}>
+                <td className="table-cell font-mono text-xs">{x.resource}</td>
+                <td className="table-cell"><AccessModes modes={x.modes} /></td>
+                <td className="table-cell text-ink-300">{x.description || "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {!agent.accesses.length && (
+          <p className="p-6 text-sm text-ink-400">
+            This agent has not declared any accesses. Pass <code className="text-brand-300">accesses=&#123;"postgres:orders": ["read", "write"]&#125;</code> to <code className="text-brand-300">LangDeck(...)</code>. They are self-reported, not enforced.
+          </p>
+        )}
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <div><h3 className="label">Depends on</h3>{chips(agent.depends_on, "Calls no other agents.")}</div>
+        <div><h3 className="label">Used by</h3>{chips(usedBy, "No agent declares a dependency on this one.")}</div>
+      </div>
+      <Link to="/dependencies" className="inline-block text-sm text-brand-300 hover:underline">See the whole dependency graph →</Link>
+    </div>
+  );
+}
+
 export function AgentDetailPage() {
   const { id = "" } = useParams();
   const nav = useNavigate();
@@ -149,6 +195,7 @@ export function AgentDetailPage() {
         onChange={setTab}
         tabs={[
           { id: "graph", label: "Graph" },
+          { id: "access", label: `Access${a.accesses.length ? ` (${a.accesses.length})` : ""}` },
           { id: "runs", label: `Runs${runs.data ? ` (${runs.data.length})` : ""}` },
           { id: "config", label: "Configuration" },
           { id: "commands", label: "Commands" },
@@ -159,6 +206,7 @@ export function AgentDetailPage() {
           <GraphView graph={a.graph} height={360} />
         </div>
       )}
+      {tab === "access" && <AccessTab agent={a} />}
       {tab === "runs" && <div className="card overflow-hidden"><RunsTable runs={runs.data} showAgent={false} /></div>}
       {tab === "config" && <ConfigTab agentId={id} current={data.config?.config} />}
       {tab === "commands" && (

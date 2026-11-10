@@ -32,6 +32,33 @@ def test_registers_with_config(deck, server):
     assert seen == [{"model": "m1"}]
 
 
+def test_registers_accesses_and_dependencies(server):
+    from langdeck.client import normalize_accesses
+
+    assert normalize_accesses({"db:orders": ["read", "write"], "s3:r": "read", "api:x": {"modes": ["execute"], "description": "d"}}) == [
+        {"resource": "db:orders", "modes": ["read", "write"]},
+        {"resource": "s3:r", "modes": ["read"]},
+        {"resource": "api:x", "modes": ["execute"], "description": "d"},
+    ]
+    assert normalize_accesses(None) is None
+    for bad in ({"db": ["sudo"]}, {"db": []}, [{"modes": ["read"]}]):
+        with pytest.raises(ValueError):
+            normalize_accesses(bad)
+
+
+def test_register_body_carries_declarations_only_when_set(server):
+    from langdeck import LangDeck
+
+    declared = LangDeck("a1", url="http://x", api_key=KEY, accesses={"db:orders": "read"}, depends_on=["billing"],
+                        http_client=httpx.Client(transport=httpx.MockTransport(server.handler)))
+    declared._register()
+    assert server.registrations[-1]["accesses"] == [{"resource": "db:orders", "modes": ["read"]}]
+    assert server.registrations[-1]["depends_on"] == ["billing"]
+    quiet = LangDeck("a2", url="http://x", api_key=KEY, http_client=httpx.Client(transport=httpx.MockTransport(server.handler)))
+    quiet._register()
+    assert "accesses" not in server.registrations[-1] and "depends_on" not in server.registrations[-1]
+
+
 class FakeGraph:
     """Behaves like a compiled graph: invoke(input, config) and get_graph()."""
 

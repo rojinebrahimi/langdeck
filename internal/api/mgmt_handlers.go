@@ -77,6 +77,46 @@ func (a *API) listAgents(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, 200, resp)
 }
 
+// agentGraph returns the dependency graph between agents: one node per registered agent
+// (plus one per dependency nobody has registered yet) and an edge source -> target for
+// every "source depends on target" an agent declared.
+func (a *API) agentGraph(w http.ResponseWriter, r *http.Request) {
+	agents, err := a.Store.ListAgents(r.Context())
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	type node struct {
+		ID         string `json:"id,omitempty"`
+		Name       string `json:"name"`
+		Status     string `json:"status"`
+		Registered bool   `json:"registered"`
+		Accesses   int    `json:"accesses"`
+	}
+	type edge struct {
+		Source string `json:"source"`
+		Target string `json:"target"`
+	}
+	now := a.Now()
+	nodes, edges, index := []node{}, []edge{}, map[string]bool{}
+	for i := range agents {
+		ag := &agents[i]
+		ag.ComputeStatus(now)
+		nodes = append(nodes, node{ID: ag.ID, Name: ag.Name, Status: string(ag.Status), Registered: true, Accesses: len(ag.Accesses)})
+		index[ag.Name] = true
+	}
+	for i := range agents {
+		for _, dep := range agents[i].DependsOn {
+			if !index[dep] {
+				index[dep] = true
+				nodes = append(nodes, node{Name: dep, Status: "unknown"})
+			}
+			edges = append(edges, edge{Source: agents[i].Name, Target: dep})
+		}
+	}
+	writeJSON(w, 200, map[string]any{"nodes": nodes, "edges": edges})
+}
+
 func (a *API) loadAgent(w http.ResponseWriter, r *http.Request) (*domain.Agent, bool) {
 	ag, err := a.Store.GetAgent(r.Context(), chi.URLParam(r, "id"))
 	if err != nil {

@@ -92,6 +92,30 @@ Statuses you will see:
 Agents only make outbound HTTPS requests, so they work behind NAT, in private subnets and
 inside a VPC with no ingress rules.
 
+### Declaring accesses and dependencies
+
+Tell LangDeck what the agent can touch and which other agents it calls:
+
+```python
+deck = LangDeck(
+    name="support-bot",
+    accesses={
+        "postgres:orders": ["read", "write"],
+        "s3:reports": "read",
+        "zendesk-api": {"modes": ["execute"], "description": "close tickets"},
+    },
+    depends_on=["billing", "kb-search"],
+)
+```
+
+- **Accesses** show on the agent's **Access** tab. Modes are `read`, `write`, `execute`, `delete`
+  and `admin`; resource names are free text, so pick a convention such as `kind:name`.
+- **Dependencies** are drawn on the **Dependencies** page, with each agent's online/offline state.
+  A dependency nobody has registered yet is listed as "declared but not registered".
+- Both are **self-reported** by the agent. LangDeck displays them; it does not enforce them, so
+  they document intent rather than act as a permission boundary. Leave them out and the last
+  declared values are kept; pass an empty value (`accesses={}`, `depends_on=[]`) to clear them.
+
 ## 4. Watching a run
 
 The **Runs** page lists everything the fleet ran, newest first, filterable by agent and status.

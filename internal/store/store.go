@@ -47,6 +47,10 @@ type AgentRegistration struct {
 	SDKVersion  string
 	Graph       json.RawMessage
 	Labels      map[string]string
+	// Accesses and DependsOn keep the stored value when nil (an older SDK that does not
+	// report them) and replace it when non-nil, so an empty slice clears it.
+	Accesses  []domain.Access
+	DependsOn []string
 }
 
 // RedeliverAfter is how long a delivered but un-acked command waits before

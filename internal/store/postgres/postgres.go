@@ -79,6 +79,18 @@ func jb(raw json.RawMessage) any {
 	return string(raw)
 }
 
+// jsonOrNil encodes v as JSON text, or returns SQL NULL when present is false.
+func jsonOrNil(present bool, v any) any {
+	if !present {
+		return nil
+	}
+	b, err := json.Marshal(v)
+	if err != nil {
+		return nil
+	}
+	return string(b)
+}
+
 func raw(b []byte) json.RawMessage {
 	if len(b) == 0 {
 		return nil
@@ -232,19 +244,22 @@ func (s *Store) TouchAPIKey(ctx context.Context, id string, at time.Time) error 
 
 // ---- agents ----
 
-const agentCols = `id, name, description, version, framework, sdk_version, graph, labels, desired_state,
+const agentCols = `id, name, description, version, framework, sdk_version, graph, labels, accesses, depends_on, desired_state,
 	instances, last_heartbeat, created_at, updated_at`
 
 func scanAgent(row pgx.Row) (*domain.Agent, error) {
 	var a domain.Agent
-	var graph, labels []byte
-	if err := row.Scan(&a.ID, &a.Name, &a.Description, &a.Version, &a.Framework, &a.SDKVersion, &graph, &labels,
+	var graph, labels, accesses, dependsOn []byte
+	if err := row.Scan(&a.ID, &a.Name, &a.Description, &a.Version, &a.Framework, &a.SDKVersion, &graph, &labels, &accesses, &dependsOn,
 		&a.DesiredState, &a.Instances, &a.LastHeartbeat, &a.CreatedAt, &a.UpdatedAt); err != nil {
 		return nil, mapErr(err)
 	}
 	a.Graph = raw(graph)
 	a.Labels = map[string]string{}
 	_ = json.Unmarshal(labels, &a.Labels)
+	a.Accesses, a.DependsOn = []domain.Access{}, []string{}
+	_ = json.Unmarshal(accesses, &a.Accesses)
+	_ = json.Unmarshal(dependsOn, &a.DependsOn)
 	return &a, nil
 }
 
@@ -254,14 +269,16 @@ func (s *Store) RegisterAgent(ctx context.Context, reg store.AgentRegistration, 
 		labels = []byte("{}")
 	}
 	return scanAgent(s.pool.QueryRow(ctx, `
-		INSERT INTO agents (id, name, description, version, framework, sdk_version, graph, labels, last_heartbeat, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$9,$9)
+		INSERT INTO agents (id, name, description, version, framework, sdk_version, graph, labels, accesses, depends_on, last_heartbeat, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$11,$11)
 		ON CONFLICT (name) DO UPDATE SET
 			description = EXCLUDED.description, version = EXCLUDED.version, framework = EXCLUDED.framework,
 			sdk_version = EXCLUDED.sdk_version, graph = COALESCE(EXCLUDED.graph, agents.graph),
+			accesses = COALESCE(EXCLUDED.accesses, agents.accesses), depends_on = COALESCE(EXCLUDED.depends_on, agents.depends_on),
 			labels = EXCLUDED.labels, last_heartbeat = EXCLUDED.last_heartbeat, updated_at = EXCLUDED.updated_at
 		RETURNING `+agentCols,
-		util.NewID(), reg.Name, reg.Description, reg.Version, reg.Framework, reg.SDKVersion, jb(reg.Graph), string(labels), now))
+		util.NewID(), reg.Name, reg.Description, reg.Version, reg.Framework, reg.SDKVersion, jb(reg.Graph), string(labels),
+		jsonOrNil(reg.Accesses != nil, reg.Accesses), jsonOrNil(reg.DependsOn != nil, reg.DependsOn), now))
 }
 
 func (s *Store) Heartbeat(ctx context.Context, id string, instances int, now time.Time) error {

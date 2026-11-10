@@ -7,6 +7,16 @@ import { APIKeysPage } from "./APIKeys";
 import { ChangePasswordForm } from "./ChangePassword";
 import { AgentsPage } from "./Agents";
 import { GuidePage } from "./Guide";
+import { DependenciesPage } from "./Dependencies";
+import { AgentDetailPage } from "./AgentDetail";
+import { Route, Routes } from "react-router-dom";
+
+// React Flow needs layout APIs jsdom lacks; the graph itself is covered by GraphView.test.ts.
+vi.mock("../components/GraphView", () => ({
+  GraphView: ({ graph }: { graph?: { nodes: { id: string }[]; edges: { source: string; target: string }[] } }) => (
+    <ul aria-label="graph">{graph?.edges.map((e) => <li key={e.source + e.target}>{`${e.source} -> ${e.target}`}</li>)}</ul>
+  ),
+}));
 
 afterEach(() => vi.unstubAllGlobals());
 
@@ -173,5 +183,70 @@ describe("AgentsPage pagination", () => {
     renderPage(<AgentsPage />, "/agents?status=offline");
     expect(await screen.findByText(/no agents match/i)).toBeInTheDocument();
     expect(screen.queryByText(/no agents connected yet/i)).not.toBeInTheDocument();
+  });
+});
+
+const depGraph = {
+  nodes: [
+    { id: "a1", name: "support-bot", status: "online", registered: true, accesses: 2 },
+    { id: "a2", name: "billing", status: "offline", registered: true, accesses: 0 },
+    { name: "kb-search", status: "unknown", registered: false, accesses: 0 },
+  ],
+  edges: [{ source: "support-bot", target: "billing" }, { source: "support-bot", target: "kb-search" }],
+};
+
+describe("DependenciesPage", () => {
+  it("draws declared edges and flags dependencies nobody registered", async () => {
+    mockApi([me("viewer"), { match: /\/api\/v1\/agent-graph$/, body: depGraph }]);
+    renderPage(<DependenciesPage />);
+    expect(await screen.findByText("support-bot -> billing")).toBeInTheDocument();
+    expect(screen.getByText("support-bot -> kb-search")).toBeInTheDocument();
+    expect(screen.getByText(/Declared but not registered: kb-search/)).toBeInTheDocument();
+  });
+
+  it("explains how to declare dependencies when there are none", async () => {
+    mockApi([me("viewer"), { match: /\/api\/v1\/agent-graph$/, body: { nodes: [], edges: [] } }]);
+    renderPage(<DependenciesPage />);
+    expect(await screen.findByText("No dependencies declared")).toBeInTheDocument();
+  });
+});
+
+describe("AgentDetailPage access tab", () => {
+  const agent = {
+    id: "a1", name: "support-bot", description: "", version: "1", framework: "langgraph", labels: {}, desired_state: "running",
+    status: "online", instances: 1, sdk_version: "0.1", created_at: new Date().toISOString(), updated_at: new Date().toISOString(),
+    accesses: [
+      { resource: "postgres:orders", modes: ["read", "write"], description: "refund lookups" },
+      { resource: "s3:reports", modes: ["read"] },
+    ],
+    depends_on: ["billing"],
+  };
+  const routes = (a: object) => [
+    me("viewer"),
+    { match: /\/api\/v1\/agents\/a1$/, body: { agent: a, config: null } },
+    { match: /\/api\/v1\/agents\/a1\/commands$/, body: { commands: [] } },
+    { match: /\/api\/v1\/runs/, body: { runs: [] } },
+    { match: /\/api\/v1\/agent-graph$/, body: depGraph },
+  ];
+  const open = () =>
+    renderPage(<Routes><Route path="/agents/:id" element={<AgentDetailPage />} /></Routes>, "/agents/a1");
+
+  it("lists each resource with its modes, and what the agent depends on", async () => {
+    mockApi(routes(agent));
+    open();
+    await userEvent.click(await screen.findByRole("tab", { name: /^Access \(2\)/ }));
+    expect(screen.getByText("postgres:orders")).toBeInTheDocument();
+    expect(screen.getByText("refund lookups")).toBeInTheDocument();
+    expect(screen.getAllByText("read")).toHaveLength(2);
+    expect(screen.getByText("write")).toBeInTheDocument();
+    expect(await screen.findByRole("link", { name: "billing" })).toHaveAttribute("href", "/agents/a2");
+  });
+
+  it("tells the developer how to declare accesses when there are none", async () => {
+    mockApi(routes({ ...agent, accesses: [], depends_on: [] }));
+    open();
+    await userEvent.click(await screen.findByRole("tab", { name: /^Access/ }));
+    expect(screen.getByText(/has not declared any accesses/)).toBeInTheDocument();
+    expect(screen.getByText("Calls no other agents.")).toBeInTheDocument();
   });
 });

@@ -53,6 +53,8 @@ type registerReq struct {
 	SDKVersion  string            `json:"sdk_version"`
 	Graph       json.RawMessage   `json:"graph"`
 	Labels      map[string]string `json:"labels"`
+	Accesses    []domain.Access   `json:"accesses"`
+	DependsOn   []string          `json:"depends_on"`
 }
 
 func (a *API) agentRegister(w http.ResponseWriter, r *http.Request) {
@@ -77,12 +79,22 @@ func (a *API) agentRegister(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "too many labels or field too long")
 		return
 	}
+	accesses, err := domain.NormalizeAccesses(req.Accesses)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	dependsOn, err := domain.NormalizeDependsOn(req.Name, req.DependsOn)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
 	if req.Framework == "" {
 		req.Framework = "langgraph"
 	}
 	ag, err := a.Store.RegisterAgent(r.Context(), store.AgentRegistration{
 		Name: req.Name, Description: req.Description, Version: req.Version, Framework: req.Framework,
-		SDKVersion: req.SDKVersion, Graph: req.Graph, Labels: req.Labels,
+		SDKVersion: req.SDKVersion, Graph: req.Graph, Labels: req.Labels, Accesses: accesses, DependsOn: dependsOn,
 	}, a.Now())
 	if err != nil {
 		a.fail(w, r, err)

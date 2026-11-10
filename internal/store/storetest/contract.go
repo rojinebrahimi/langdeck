@@ -126,6 +126,26 @@ func testAgents(t *testing.T, s store.Store) {
 	if b.ID != a.ID || b.Version != "2" || len(b.Graph) == 0 {
 		t.Fatalf("re-register must update in place and keep graph: %+v", b)
 	}
+	// Accesses and dependencies: absent keeps the stored value, an empty list clears it.
+	if len(b.Accesses) != 0 || len(b.DependsOn) != 0 || b.Accesses == nil || b.DependsOn == nil {
+		t.Fatalf("unreported accesses and dependencies must be empty lists: %+v", b)
+	}
+	acc := []domain.Access{{Resource: "postgres:orders", Modes: []domain.AccessMode{domain.AccessRead, domain.AccessWrite}}}
+	c, err := s.RegisterAgent(ctx, store.AgentRegistration{Name: "alpha", Accesses: acc, DependsOn: []string{"beta"}}, now())
+	must(t, err)
+	if len(c.Accesses) != 1 || c.Accesses[0].Resource != "postgres:orders" || len(c.Accesses[0].Modes) != 2 || len(c.DependsOn) != 1 {
+		t.Fatalf("accesses and dependencies not stored: %+v", c)
+	}
+	c, err = s.RegisterAgent(ctx, store.AgentRegistration{Name: "alpha"}, now())
+	must(t, err)
+	if len(c.Accesses) != 1 || len(c.DependsOn) != 1 {
+		t.Fatalf("re-register without them must keep them: %+v", c)
+	}
+	c, err = s.RegisterAgent(ctx, store.AgentRegistration{Name: "alpha", Accesses: []domain.Access{}, DependsOn: []string{}}, now())
+	must(t, err)
+	if len(c.Accesses) != 0 || len(c.DependsOn) != 0 {
+		t.Fatalf("empty lists must clear them: %+v", c)
+	}
 	must(t, s.SetAgentDesiredState(ctx, a.ID, domain.DesiredPaused))
 	must(t, s.Heartbeat(ctx, a.ID, 3, now()))
 	got, err := s.GetAgentByName(ctx, "alpha")

@@ -65,7 +65,7 @@ flowchart LR
 
 | Entity | Notes |
 |---|---|
-| `agents` | One row per agent name. Graph topology, labels, version, desired state, last heartbeat. Status (online/offline/paused) is derived, never stored. |
+| `agents` | One row per agent name. Graph topology, labels, declared accesses and dependencies, version, desired state, last heartbeat. Status (online/offline/paused) is derived, never stored. |
 | `agent_configs` | Append-only versions of runtime configuration. The newest version wins on every instance. |
 | `runs` | One graph execution. SDK-generated or UI-generated id, status, input/output, token counts. |
 | `run_events` | The trace: node, LLM and tool steps with latency and (redacted, size-capped) payloads. |

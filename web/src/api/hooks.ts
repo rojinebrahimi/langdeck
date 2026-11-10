@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tansta
 import { api } from "./client";
 import type {
   AuthMode,
-  Agent, AgentConfig, APIKey, AuditEntry, Command, Interrupt, Me, Run, RunEvent, Stats, User,
+  Agent, AgentConfig, AgentDepGraph, APIKey, AuditEntry, Command, Interrupt, Me, Run, RunEvent, Stats, User,
 } from "./types";
 
 export const useMe = (enabled = true) =>
@@ -17,6 +17,10 @@ export const useStats = () => useQuery({ queryKey: ["stats"], queryFn: () => api
 /** Every agent (up to 500), for pickers such as the Runs filter. Lists use useAgentsPage. */
 export const useAgents = () =>
   useQuery({ queryKey: ["agents", "all"], queryFn: () => api<AgentPage>("/api/v1/agents?limit=500").then((r) => r.agents), refetchInterval: 20_000 });
+
+/** The declared dependency graph between agents. */
+export const useAgentGraph = () =>
+  useQuery({ queryKey: ["agents", "graph"], queryFn: () => api<AgentDepGraph>("/api/v1/agent-graph"), refetchInterval: 20_000 });
 
 export interface AgentPage { agents: Agent[]; total: number; next_after: string | null }
 export interface AgentPageQuery { q?: string; status?: string; after?: string; limit?: number }

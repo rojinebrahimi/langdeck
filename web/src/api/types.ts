@@ -20,6 +20,14 @@ export interface GraphNode { id: string; type?: string; data?: unknown }
 export interface GraphEdge { source: string; target: string; conditional?: boolean; data?: unknown }
 export interface AgentGraph { nodes: GraphNode[]; edges: GraphEdge[] }
 
+export type AccessMode = "read" | "write" | "execute" | "delete" | "admin";
+/** A resource an agent says it touches, and how. Self-reported by the SDK, not enforced. */
+export interface Access { resource: string; modes: AccessMode[]; description?: string }
+
+/** One agent in the fleet dependency graph; unregistered dependencies come back with registered=false. */
+export interface AgentDepNode { id?: string; name: string; status: AgentStatus | "unknown"; registered: boolean; accesses: number }
+export interface AgentDepGraph { nodes: AgentDepNode[]; edges: { source: string; target: string }[] }
+
 export interface Agent {
   id: string;
   name: string;
@@ -28,6 +36,8 @@ export interface Agent {
   framework: string;
   graph?: AgentGraph;
   labels: Record<string, string>;
+  accesses: Access[];
+  depends_on: string[];
   desired_state: "running" | "paused";
   status: AgentStatus;
   instances: number;

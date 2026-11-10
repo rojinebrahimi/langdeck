@@ -6,6 +6,11 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 ## [Unreleased]
 
 ### Added
+- **Agent accesses and dependencies.** An agent can declare the resources it touches and how
+  (`read`, `write`, `execute`, `delete`, `admin`) with `LangDeck(accesses=...)`, and the agents it
+  calls with `depends_on=[...]`. The agent page has an Access tab, and a new Dependencies page
+  (`GET /api/v1/agent-graph`) draws the graph across agents. Both are self-reported and not
+  enforced. Migration `0003` adds two nullable columns to `agents`.
 - **Agent pagination.** `GET /api/v1/agents` is keyset-paginated by name (`limit`, `after`,
   `next_after`) and returns `total`, with server-side search (`q`, name and description) and a
   `status` filter (`online`, `paused`, `offline`). The Agents page has a search box, status filter

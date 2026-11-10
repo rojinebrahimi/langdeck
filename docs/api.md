@@ -14,7 +14,8 @@ keys can only use the agent API.
 | GET | `/stats` | viewer | Dashboard summary (last 24h) |
 | GET | `/stream` | viewer | Server-Sent Events: `agent.updated`, `run.updated`, `interrupt.updated`, `command.created` |
 | GET | `/agents?q=&status=&after=&limit=` | viewer | List agents by name with derived status. `q` searches name and description, `status` is `online`, `paused` or `offline`, `limit` defaults to 24 (max 500). Returns `total` and `next_after`, the cursor for the next page (`null` on the last page) |
-| GET | `/agents/{id}` | viewer | Agent with graph and current config |
+| GET | `/agent-graph` | viewer | Declared dependency graph: `{"nodes":[{id,name,status,registered,accesses}],"edges":[{source,target}]}`; edge means source depends on target; unregistered targets have `registered:false`, `status:"unknown"` |
+| GET | `/agents/{id}` | viewer | Agent with graph, accesses, dependencies and current config |
 | GET | `/agents/{id}/configs` | viewer | Config versions, newest first |
 | GET | `/agents/{id}/commands` | viewer | Recent commands and their delivery status |
 | POST | `/agents/{id}/runs` | operator | Start a run: `{"input": {...}, "thread_id": "..."}` |
@@ -38,7 +39,7 @@ keys can only use the agent API.
 
 | Method | Path | Description |
 |---|---|---|
-| POST | `/agent/register` | Upsert the agent (name, version, graph, labels); returns desired state and latest config |
+| POST | `/agent/register` | Upsert the agent (name, version, graph, labels, accesses, depends_on); returns desired state and latest config. `accesses` is `[{"resource","modes":["read"\|"write"\|"execute"\|"delete"\|"admin"],"description"}]` (max 64); `depends_on` is a list of agent names (max 64, not itself). Omit either to keep the stored value; send `[]` to clear it |
 | POST | `/agent/heartbeat` | `{"agent","instances"}`; returns desired state and config version |
 | POST | `/agent/events` | `{"agent","events":[{run_id,type,node,ts,latency_ms,payload,thread_id}]}` (max 500) |
 | GET | `/agent/commands?agent=&wait=25s` | Long-poll for commands (max 30s) |

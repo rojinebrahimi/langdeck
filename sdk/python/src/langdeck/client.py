@@ -25,6 +25,39 @@ from .transport import EventBuffer, LangDeckError, Transport, now_iso
 log = logging.getLogger("langdeck")
 
 
+ACCESS_MODES = ("read", "write", "execute", "delete", "admin")
+
+
+def normalize_accesses(accesses: Any) -> list[dict] | None:
+    """Turn the ``accesses=`` argument into the list the API expects.
+
+    Accepts a mapping ``{"postgres:orders": ["read", "write"], "s3:reports": "read"}``
+    (a value may also be ``{"modes": [...], "description": "..."}``) or a list of
+    ``{"resource": ..., "modes": [...], "description": ...}`` dicts. ``None`` means "do not report".
+    """
+    if accesses is None:
+        return None
+    if isinstance(accesses, dict):
+        items = [{"resource": res, **(v if isinstance(v, dict) else {"modes": v})} for res, v in accesses.items()]
+    else:
+        items = [dict(a) for a in accesses]
+    out = []
+    for item in items:
+        modes = item.get("modes") or []
+        modes = [modes] if isinstance(modes, str) else list(modes)
+        bad = [m for m in modes if m not in ACCESS_MODES]
+        if not item.get("resource") or not modes or bad:
+            raise ValueError(
+                f"access {item.get('resource')!r} needs a resource and modes from {ACCESS_MODES}"
+                + (f" (got {bad})" if bad else "")
+            )
+        entry = {"resource": item["resource"], "modes": modes}
+        if item.get("description"):
+            entry["description"] = item["description"]
+        out.append(entry)
+    return out
+
+
 class AgentPaused(Exception):
     """Raised when a run is started while operators have paused the agent."""
 
@@ -77,6 +110,8 @@ class LangDeck:
         description: str = "",
         version: str = "",
         labels: dict[str, str] | None = None,
+        accesses: dict[str, Any] | list[dict] | None = None,
+        depends_on: list[str] | None = None,
         capture_payloads: bool = True,
         max_concurrent_runs: int = 4,
         heartbeat_interval: float = 15.0,
@@ -91,6 +126,8 @@ class LangDeck:
         self.description = description
         self.version = version or os.environ.get("LANGDECK_AGENT_VERSION", "")
         self.labels = labels or {}
+        self.accesses = normalize_accesses(accesses)
+        self.depends_on = list(depends_on) if depends_on is not None else None
         self.capture_payloads = capture_payloads
         self._t = Transport(url, api_key, timeout=timeout, client=http_client)
         self._events = EventBuffer(self._t, name, flush_interval=flush_interval)
@@ -328,19 +365,21 @@ class LangDeck:
     # ------------------------------------------------------------------ control plane
 
     def _register(self) -> None:
-        res = self._t.request(
-            "POST",
-            "/api/v1/agent/register",
-            json={
-                "name": self.name,
-                "description": self.description,
-                "version": self.version,
-                "framework": "langgraph",
-                "sdk_version": __version__,
-                "labels": self.labels,
-                "graph": graph_topology(self._graph) if self._graph is not None else None,
-            },
-        )
+        body: dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "version": self.version,
+            "framework": "langgraph",
+            "sdk_version": __version__,
+            "labels": self.labels,
+            "graph": graph_topology(self._graph) if self._graph is not None else None,
+        }
+        # Left out when not declared, so the server keeps what it already has.
+        if self.accesses is not None:
+            body["accesses"] = self.accesses
+        if self.depends_on is not None:
+            body["depends_on"] = self.depends_on
+        res = self._t.request("POST", "/api/v1/agent/register", json=body)
         self._registered = True
         self._paused = res.get("desired_state") == "paused"
         if res.get("config") is not None:

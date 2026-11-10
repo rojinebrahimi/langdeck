@@ -99,6 +99,8 @@ app.invoke(state, run_id=request_id, thread_id=conversation_id)
 | `name` | required | Agent name (lowercase, digits, `-`, `_`, `.`) |
 | `url`, `api_key` | `LANGDECK_URL`, `LANGDECK_API_KEY` | Where and how to connect |
 | `description`, `version`, `labels` | | Shown in the UI |
+| `accesses` | | Resources the agent touches, e.g. `{"postgres:orders": ["read", "write"], "s3:reports": "read"}`. Modes: `read`, `write`, `execute`, `delete`, `admin`. Shown on the agent's Access tab; self-reported, not enforced |
+| `depends_on` | | Names of other agents this one calls or hands off to, e.g. `["billing"]`. Drawn on the Dependencies page |
 | `capture_payloads` | `True` | Send inputs/outputs in traces |
 | `max_concurrent_runs` | `4` | Worker threads for runs started from the UI |
 | `heartbeat_interval` | `15` | Seconds |

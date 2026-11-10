@@ -8,6 +8,7 @@ import { LoginPage } from "./pages/Login";
 import { DashboardPage } from "./pages/Dashboard";
 import { AgentsPage } from "./pages/Agents";
 import { AgentDetailPage } from "./pages/AgentDetail";
+import { DependenciesPage } from "./pages/Dependencies";
 import { RunsPage } from "./pages/Runs";
 import { RunDetailPage } from "./pages/RunDetail";
 import { ApprovalsPage } from "./pages/Approvals";
@@ -35,6 +36,7 @@ export function App() {
         <Route path="/" element={<DashboardPage />} />
         <Route path="/agents" element={<AgentsPage />} />
         <Route path="/agents/:id" element={<AgentDetailPage />} />
+        <Route path="/dependencies" element={<DependenciesPage />} />
         <Route path="/runs" element={<RunsPage />} />
         <Route path="/runs/:id" element={<RunDetailPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />

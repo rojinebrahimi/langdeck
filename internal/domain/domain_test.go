@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -68,5 +69,42 @@ func TestAPIKeyActive(t *testing.T) {
 	}
 	if (&APIKey{ExpiresAt: &past}).Active(now) || (&APIKey{RevokedAt: &past}).Active(now) {
 		t.Fatal("expired or revoked key must be inactive")
+	}
+}
+
+func TestNormalizeAccesses(t *testing.T) {
+	got, err := NormalizeAccesses([]Access{{Resource: "  postgres:orders ", Modes: []AccessMode{AccessRead, AccessWrite, AccessRead}}})
+	if err != nil || len(got) != 1 || got[0].Resource != "postgres:orders" || len(got[0].Modes) != 2 {
+		t.Fatalf("trim and de-duplicate modes: %+v %v", got, err)
+	}
+	if got, err := NormalizeAccesses(nil); got != nil || err != nil {
+		t.Fatalf("nil means not reported: %v %v", got, err)
+	}
+	if got, err := NormalizeAccesses([]Access{}); got == nil || err != nil {
+		t.Fatalf("empty must stay non-nil so it can clear: %v %v", got, err)
+	}
+	bad := map[string][]Access{
+		"no resource": {{Modes: []AccessMode{AccessRead}}},
+		"no modes":    {{Resource: "s3:a"}},
+		"bad mode":    {{Resource: "s3:a", Modes: []AccessMode{"sudo"}}},
+		"duplicate":   {{Resource: "s3:a", Modes: []AccessMode{AccessRead}}, {Resource: "s3:a", Modes: []AccessMode{AccessWrite}}},
+		"long":        {{Resource: strings.Repeat("x", MaxResourceLength+1), Modes: []AccessMode{AccessRead}}},
+	}
+	for name, in := range bad {
+		if _, err := NormalizeAccesses(in); err == nil {
+			t.Errorf("%s: want error", name)
+		}
+	}
+}
+
+func TestNormalizeDependsOn(t *testing.T) {
+	got, err := NormalizeDependsOn("a", []string{"b", "c", "b"})
+	if err != nil || len(got) != 2 {
+		t.Fatalf("de-duplicate: %v %v", got, err)
+	}
+	for name, in := range map[string][]string{"self": {"a"}, "bad name": {"Not Valid"}} {
+		if _, err := NormalizeDependsOn("a", in); err == nil {
+			t.Errorf("%s: want error", name)
+		}
 	}
 }

@@ -264,6 +264,12 @@ func (s *Store) RegisterAgent(_ context.Context, reg store.AgentRegistration, no
 			if len(reg.Graph) > 0 {
 				a.Graph = reg.Graph
 			}
+			if reg.Accesses != nil {
+				a.Accesses = reg.Accesses
+			}
+			if reg.DependsOn != nil {
+				a.DependsOn = reg.DependsOn
+			}
 			a.Labels, a.LastHeartbeat, a.UpdatedAt = labels, &now, now
 			if a.Instances < 1 {
 				a.Instances = 1
@@ -274,6 +280,7 @@ func (s *Store) RegisterAgent(_ context.Context, reg store.AgentRegistration, no
 	a := &domain.Agent{
 		ID: util.NewID(), Name: reg.Name, Description: reg.Description, Version: reg.Version,
 		Framework: reg.Framework, SDKVersion: reg.SDKVersion, Graph: reg.Graph, Labels: labels,
+		Accesses: orEmpty(reg.Accesses), DependsOn: orEmpty(reg.DependsOn),
 		DesiredState: domain.DesiredRunning, Instances: 1, LastHeartbeat: &now, CreatedAt: now, UpdatedAt: now,
 	}
 	s.agents[a.ID] = a
@@ -701,4 +708,12 @@ func (s *Store) Stats(_ context.Context, now time.Time) (*domain.Stats, error) {
 		}
 	}
 	return store.ComputeStats(agents, runs, pending, now), nil
+}
+
+// orEmpty turns a nil slice into an empty one so it encodes as [] rather than null.
+func orEmpty[T any](s []T) []T {
+	if s == nil {
+		return []T{}
+	}
+	return s
 }

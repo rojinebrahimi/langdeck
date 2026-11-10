@@ -97,6 +97,7 @@ func (a *API) Handler(ctx context.Context) http.Handler {
 			r.Get("/stats", a.stats)
 			r.Get("/stream", a.stream)
 			r.Get("/agents", a.listAgents)
+			r.Get("/agent-graph", a.agentGraph)
 			r.Get("/agents/{id}", a.getAgent)
 			r.Get("/agents/{id}/configs", a.listConfigs)
 			r.Get("/agents/{id}/commands", a.listCommands)

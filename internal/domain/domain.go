@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"regexp"
+	"strings"
 	"time"
 )
 
@@ -115,20 +116,122 @@ const (
 
 // Agent is a registered LangGraph application.
 type Agent struct {
-	ID            string            `json:"id"`
-	Name          string            `json:"name"`
-	Description   string            `json:"description"`
-	Version       string            `json:"version"`
-	Framework     string            `json:"framework"`
-	Graph         json.RawMessage   `json:"graph,omitempty"`
-	Labels        map[string]string `json:"labels"`
-	DesiredState  DesiredState      `json:"desired_state"`
-	Status        AgentStatus       `json:"status"`
-	Instances     int               `json:"instances"`
-	SDKVersion    string            `json:"sdk_version"`
-	LastHeartbeat *time.Time        `json:"last_heartbeat,omitempty"`
-	CreatedAt     time.Time         `json:"created_at"`
-	UpdatedAt     time.Time         `json:"updated_at"`
+	ID          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description"`
+	Version     string            `json:"version"`
+	Framework   string            `json:"framework"`
+	Graph       json.RawMessage   `json:"graph,omitempty"`
+	Labels      map[string]string `json:"labels"`
+	// Accesses are the resources the agent says it touches, and how. Self-reported by the SDK.
+	Accesses []Access `json:"accesses"`
+	// DependsOn lists the other agents this one calls or hands off to. Self-reported by the SDK.
+	DependsOn     []string     `json:"depends_on"`
+	DesiredState  DesiredState `json:"desired_state"`
+	Status        AgentStatus  `json:"status"`
+	Instances     int          `json:"instances"`
+	SDKVersion    string       `json:"sdk_version"`
+	LastHeartbeat *time.Time   `json:"last_heartbeat,omitempty"`
+	CreatedAt     time.Time    `json:"created_at"`
+	UpdatedAt     time.Time    `json:"updated_at"`
+}
+
+// AccessMode is one kind of access an agent has to a resource.
+type AccessMode string
+
+const (
+	AccessRead    AccessMode = "read"
+	AccessWrite   AccessMode = "write"
+	AccessExecute AccessMode = "execute"
+	AccessDelete  AccessMode = "delete"
+	AccessAdmin   AccessMode = "admin"
+)
+
+// Valid reports whether m is a known access mode.
+func (m AccessMode) Valid() bool {
+	switch m {
+	case AccessRead, AccessWrite, AccessExecute, AccessDelete, AccessAdmin:
+		return true
+	}
+	return false
+}
+
+// Access is one resource an agent touches (a database, a bucket, an API, a tool) and the modes it uses.
+// It is declared by the agent, not enforced by LangDeck.
+type Access struct {
+	Resource    string       `json:"resource"`
+	Modes       []AccessMode `json:"modes"`
+	Description string       `json:"description,omitempty"`
+}
+
+// Limits on what an agent may declare, so one registration cannot bloat the agent row.
+const (
+	MaxAccesses       = 64
+	MaxDependencies   = 64
+	MaxResourceLength = 200
+)
+
+// NormalizeAccesses validates accesses and returns them with trimmed resources and
+// de-duplicated modes in declaration order. Two entries for one resource are rejected.
+func NormalizeAccesses(in []Access) ([]Access, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if len(in) > MaxAccesses {
+		return nil, errors.New("too many accesses")
+	}
+	out := make([]Access, 0, len(in))
+	seen := map[string]bool{}
+	for _, a := range in {
+		res := strings.TrimSpace(a.Resource)
+		switch {
+		case res == "" || len(res) > MaxResourceLength:
+			return nil, errors.New("access resource must be 1-200 characters")
+		case len(a.Description) > 500:
+			return nil, errors.New("access description must be at most 500 characters")
+		case len(a.Modes) == 0:
+			return nil, errors.New("access " + res + " needs at least one mode")
+		case seen[res]:
+			return nil, errors.New("access " + res + " is declared twice")
+		}
+		seen[res] = true
+		modes, dup := make([]AccessMode, 0, len(a.Modes)), map[AccessMode]bool{}
+		for _, m := range a.Modes {
+			if !m.Valid() {
+				return nil, errors.New("access mode must be read, write, execute, delete or admin")
+			}
+			if !dup[m] {
+				dup[m] = true
+				modes = append(modes, m)
+			}
+		}
+		out = append(out, Access{Resource: res, Modes: modes, Description: a.Description})
+	}
+	return out, nil
+}
+
+// NormalizeDependsOn validates the agents that self depends on and removes duplicates.
+func NormalizeDependsOn(self string, in []string) ([]string, error) {
+	if in == nil {
+		return nil, nil
+	}
+	if len(in) > MaxDependencies {
+		return nil, errors.New("too many dependencies")
+	}
+	out, seen := make([]string, 0, len(in)), map[string]bool{}
+	for _, d := range in {
+		switch {
+		case !ValidAgentName(d):
+			return nil, errors.New("depends_on entries must be valid agent names")
+		case d == self:
+			return nil, errors.New("an agent cannot depend on itself")
+		}
+		if !seen[d] {
+			seen[d] = true
+			out = append(out, d)
+		}
+	}
+	return out, nil
 }
 
 // HeartbeatTTL is how long an agent stays "online" after its last heartbeat.
