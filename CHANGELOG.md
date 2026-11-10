@@ -5,7 +5,12 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-11-10
+
 ### Fixed
+- Opening a run with a long trace was very slow (about 4,200 DOM nodes and ~330 ms per frame for a
+  480-event run). The trace now renders 100 events at a time with "Show more" / "Show all", rows
+  are memoised, and timestamps use one shared formatter. About 290 nodes for the same run.
 - Slow scrolling in the UI: the page background no longer repaints on every scroll frame
   (`background-attachment: fixed`), and cards and the header no longer use backdrop blur.
 

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import clsx from "clsx";
 import { Ban, ChevronRight, Clock, Coins } from "lucide-react";
@@ -17,22 +17,27 @@ const dot: Record<string, string> = {
   interrupt: "bg-amber-400", log: "bg-ink-400",
 };
 
-function EventRow({ e, selected, onSelect }: { e: RunEvent; selected: boolean; onSelect: () => void }) {
+// One shared formatter: calling toLocaleTimeString per row is surprisingly slow with hundreds of rows.
+const timeFmt = new Intl.DateTimeFormat(undefined, { timeStyle: "medium" });
+// Long traces render in slices so opening a run with thousands of events stays responsive.
+const TRACE_SLICE = 100;
+
+const EventRow = memo(function EventRow({ e, selected, onSelect }: { e: RunEvent; selected: boolean; onSelect: (id: number) => void }) {
   return (
     <li>
-      <button onClick={onSelect} className={clsx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition", selected ? "bg-brand-500/15 ring-1 ring-brand-400/30" : "hover:bg-ink-800/60")}>
+      <button onClick={() => onSelect(e.id)} className={clsx("flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left text-sm transition", selected ? "bg-brand-500/15 ring-1 ring-brand-400/30" : "hover:bg-ink-800/60")}>
         <span className={clsx("h-2 w-2 shrink-0 rounded-full", dot[e.type] ?? "bg-ink-400")} />
         <span className="flex-1 truncate text-ink-100">
           {eventLabel(e.type)}
           {e.node && <span className="ml-2 rounded-md bg-ink-800 px-1.5 py-0.5 font-mono text-xs text-brand-200">{e.node}</span>}
         </span>
         {!!e.latency_ms && <span className="text-xs text-ink-400">{formatMs(e.latency_ms)}</span>}
-        <span className="font-mono text-[11px] text-ink-500">{new Date(e.ts).toLocaleTimeString()}</span>
+        <span className="font-mono text-[11px] text-ink-500">{timeFmt.format(new Date(e.ts))}</span>
         <ChevronRight className="h-3.5 w-3.5 text-ink-500" />
       </button>
     </li>
   );
-}
+});
 
 export function RunDetailPage() {
   const { id = "" } = useParams();
@@ -40,6 +45,8 @@ export function RunDetailPage() {
   const events = useRunEvents(id);
   const agent = useAgent(run.data?.agent_id ?? "");
   const [selected, setSelected] = useState<number | null>(null);
+  const [shown, setShown] = useState(TRACE_SLICE);
+  const toggleSelected = useCallback((eid: number) => setSelected((cur) => (cur === eid ? null : eid)), []);
   const cancel = useAction(() => api(`/api/v1/runs/${id}/cancel`, { method: "POST" }));
   const states = useMemo(() => nodeStates(events.data ?? [], run.data?.status ?? "pending"), [events.data, run.data?.status]);
 
@@ -75,7 +82,13 @@ export function RunDetailPage() {
         <div className="card flex flex-col p-4">
           <h2 className="mb-3 px-1 font-semibold text-white">Trace <span className="text-sm font-normal text-ink-400">({events.data?.length ?? 0} events)</span></h2>
           <ol className="max-h-[440px] flex-1 space-y-0.5 overflow-auto pr-1">
-            {events.data?.map((e) => <EventRow key={e.id} e={e} selected={e.id === selected} onSelect={() => setSelected(e.id === selected ? null : e.id)} />)}
+            {events.data?.slice(0, shown).map((e) => <EventRow key={e.id} e={e} selected={e.id === selected} onSelect={toggleSelected} />)}
+            {events.data && events.data.length > shown && (
+              <li className="flex items-center justify-center gap-2 py-2">
+                <button className="btn-ghost" onClick={() => setShown((n) => n + 200)}>Show {Math.min(200, events.data.length - shown)} more</button>
+                <button className="btn-ghost" onClick={() => setShown(events.data!.length)}>Show all ({events.data.length})</button>
+              </li>
+            )}
           </ol>
         </div>
       </div>
