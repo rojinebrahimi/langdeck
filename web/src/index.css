@@ -29,17 +29,24 @@
 }
 
 html, body, #root { height: 100%; }
-body {
-  @apply bg-ink-900 text-ink-100 antialiased;
+body { @apply bg-ink-900 text-ink-100 antialiased; }
+/* The glow lives on its own fixed layer. `background-attachment: fixed` on body forces a full
+   repaint on every scroll frame, which made long pages crawl. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
   background-image:
     radial-gradient(60rem 30rem at 85% -10%, rgb(168 85 247 / 0.13), transparent 60%),
     radial-gradient(40rem 25rem at -10% 110%, rgb(124 58 237 / 0.10), transparent 60%);
-  background-attachment: fixed;
+  transform: translateZ(0);
 }
 ::selection { background: rgb(168 85 247 / 0.4); }
 
 /* Components are declared as utilities so Tailwind v4 can compose them with @apply. */
-@utility card { @apply rounded-2xl border border-ink-700/70 bg-ink-850/80 backdrop-blur-sm shadow-[0_1px_0_0_rgb(255_255_255/0.03)_inset]; }
+@utility card { @apply rounded-2xl border border-ink-700/70 bg-ink-850/90 shadow-[0_1px_0_0_rgb(255_255_255/0.03)_inset]; }
 @utility btn { @apply inline-flex items-center justify-center gap-2 rounded-xl px-3.5 py-2 text-sm font-medium transition
          disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-400; }
 @utility btn-primary { @apply btn bg-gradient-to-b from-brand-500 to-brand-600 text-white shadow-lg shadow-brand-900/30 hover:from-brand-400 hover:to-brand-500; }

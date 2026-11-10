@@ -111,7 +111,7 @@ export function Layout({ children }: { children: ReactNode }) {
         </div>
       )}
       <div className="min-w-0 flex-1">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-800 bg-ink-900/70 px-4 backdrop-blur lg:px-8">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-ink-800 bg-ink-900/95 px-4 lg:px-8">
           <button className="rounded-lg p-1.5 text-ink-200 hover:bg-ink-800 lg:hidden" onClick={() => setOpen(!open)} aria-label="Toggle menu">
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>

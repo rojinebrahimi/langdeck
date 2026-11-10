@@ -5,6 +5,10 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+### Fixed
+- Slow scrolling in the UI: the page background no longer repaints on every scroll frame
+  (`background-attachment: fixed`), and cards and the header no longer use backdrop blur.
+
 ## [0.2.0] - 2026-11-10
 
 ### Added
