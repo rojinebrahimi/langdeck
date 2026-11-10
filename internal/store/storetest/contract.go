@@ -21,6 +21,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	t.Run("api_keys", func(t *testing.T) { testKeys(t, newStore(t)) })
 	t.Run("agents", func(t *testing.T) { testAgents(t, newStore(t)) })
 	t.Run("agent_pages", func(t *testing.T) { testAgentPages(t, newStore(t)) })
+	t.Run("agent_image", func(t *testing.T) { testAgentImage(t, newStore(t)) })
 	t.Run("configs", func(t *testing.T) { testConfigs(t, newStore(t)) })
 	t.Run("runs_and_events", func(t *testing.T) { testRuns(t, newStore(t)) })
 	t.Run("commands", func(t *testing.T) { testCommands(t, newStore(t)) })
@@ -402,5 +403,32 @@ func testAudit(t *testing.T, s store.Store) {
 	rest, _ := s.ListAudit(ctx, 10, page[1].ID)
 	if len(rest) != 3 {
 		t.Fatalf("want 3 older entries, got %d", len(rest))
+	}
+}
+
+func testAgentImage(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	a := agent(t, s, "pictured")
+	if _, _, err := s.AgentImage(ctx, a.ID); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("no image yet: %v", err)
+	}
+	must(t, s.SetAgentImage(ctx, a.ID, "image/png", []byte{1, 2, 3}, now()))
+	must(t, s.SetAgentImage(ctx, a.ID, "image/jpeg", []byte{4, 5}, now())) // replace
+	ct, data, err := s.AgentImage(ctx, a.ID)
+	must(t, err)
+	if ct != "image/jpeg" || len(data) != 2 {
+		t.Fatalf("got %s %v", ct, data)
+	}
+	got, _ := s.GetAgent(ctx, a.ID)
+	if got.ImageUpdatedAt == nil {
+		t.Fatal("agent should carry image_updated_at")
+	}
+	must(t, s.DeleteAgentImage(ctx, a.ID))
+	got, _ = s.GetAgent(ctx, a.ID)
+	if got.ImageUpdatedAt != nil {
+		t.Fatal("image_updated_at should clear")
+	}
+	if err := s.SetAgentImage(ctx, "00000000-0000-0000-0000-000000000000", "image/png", []byte{1}, now()); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unknown agent: %v", err)
 	}
 }

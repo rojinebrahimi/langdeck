@@ -245,13 +245,13 @@ func (s *Store) TouchAPIKey(ctx context.Context, id string, at time.Time) error 
 // ---- agents ----
 
 const agentCols = `id, name, description, version, framework, sdk_version, graph, labels, accesses, depends_on, desired_state,
-	instances, last_heartbeat, created_at, updated_at`
+	instances, last_heartbeat, created_at, updated_at, image_updated_at`
 
 func scanAgent(row pgx.Row) (*domain.Agent, error) {
 	var a domain.Agent
 	var graph, labels, accesses, dependsOn []byte
 	if err := row.Scan(&a.ID, &a.Name, &a.Description, &a.Version, &a.Framework, &a.SDKVersion, &graph, &labels, &accesses, &dependsOn,
-		&a.DesiredState, &a.Instances, &a.LastHeartbeat, &a.CreatedAt, &a.UpdatedAt); err != nil {
+		&a.DesiredState, &a.Instances, &a.LastHeartbeat, &a.CreatedAt, &a.UpdatedAt, &a.ImageUpdatedAt); err != nil {
 		return nil, mapErr(err)
 	}
 	a.Graph = raw(graph)
@@ -354,6 +354,47 @@ func (s *Store) SetAgentDesiredState(ctx context.Context, id string, st domain.D
 	return affected(s.pool.Exec(ctx, `UPDATE agents SET desired_state = $2, updated_at = now() WHERE id = $1`, id, st))
 }
 
+func (s *Store) SetAgentImage(ctx context.Context, id, contentType string, data []byte, now time.Time) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := affected(tx.Exec(ctx, `UPDATE agents SET image_updated_at = $2 WHERE id = $1`, id, now)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO agent_images (agent_id, content_type, data) VALUES ($1, $2, $3)
+		ON CONFLICT (agent_id) DO UPDATE SET content_type = EXCLUDED.content_type, data = EXCLUDED.data`, id, contentType, data); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+func (s *Store) AgentImage(ctx context.Context, id string) (string, []byte, error) {
+	var ct string
+	var data []byte
+	err := s.pool.QueryRow(ctx, `SELECT content_type, data FROM agent_images WHERE agent_id = $1`, id).Scan(&ct, &data)
+	if err != nil {
+		return "", nil, mapErr(err)
+	}
+	return ct, data, nil
+}
+
+func (s *Store) DeleteAgentImage(ctx context.Context, id string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	if err := affected(tx.Exec(ctx, `UPDATE agents SET image_updated_at = NULL WHERE id = $1`, id)); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `DELETE FROM agent_images WHERE agent_id = $1`, id); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
 func (s *Store) DeleteAgent(ctx context.Context, id string) error {
 	return affected(s.pool.Exec(ctx, `DELETE FROM agents WHERE id = $1`, id))
 }
@@ -394,6 +435,11 @@ func (s *Store) LatestAgentConfig(ctx context.Context, agentID string) (*domain.
 }
 
 // ---- runs ----
+
+// runListCols is runCols without the (potentially large) input and output documents; list
+// screens never show them, so they are not read from disk or sent over the wire.
+const runListCols = `r.id, r.agent_id, a.name, r.thread_id, r.status, r.trigger, NULL::jsonb, NULL::jsonb, r.error,
+	r.prompt_tokens, r.completion_tokens, r.created_by, r.created_at, r.started_at, r.ended_at`
 
 const runCols = `r.id, r.agent_id, a.name, r.thread_id, r.status, r.trigger, r.input, r.output, r.error,
 	r.prompt_tokens, r.completion_tokens, r.created_by, r.created_at, r.started_at, r.ended_at`
@@ -437,7 +483,7 @@ func (s *Store) GetRun(ctx context.Context, id string) (*domain.Run, error) {
 }
 
 func (s *Store) ListRuns(ctx context.Context, f store.RunFilter) ([]domain.Run, error) {
-	q := `SELECT ` + runCols + ` FROM runs r JOIN agents a ON a.id = r.agent_id WHERE true`
+	q := `SELECT ` + runListCols + ` FROM runs r JOIN agents a ON a.id = r.agent_id WHERE true`
 	args := []any{}
 	add := func(cond string, v any) {
 		args = append(args, v)
@@ -657,7 +703,16 @@ func (s *Store) ListAudit(ctx context.Context, limit int, beforeID int64) ([]dom
 const statsRowCap = 100_000
 
 func (s *Store) Stats(ctx context.Context, now time.Time) (*domain.Stats, error) {
-	agents, err := s.ListAgents(ctx)
+	// Only status inputs are needed, not the graph and other documents.
+	arows, err := s.pool.Query(ctx, `SELECT desired_state, last_heartbeat FROM agents`)
+	if err != nil {
+		return nil, err
+	}
+	agents, err := collect(arows, func(row pgx.Row) (*domain.Agent, error) {
+		var a domain.Agent
+		err := row.Scan(&a.DesiredState, &a.LastHeartbeat)
+		return &a, err
+	})
 	if err != nil {
 		return nil, err
 	}

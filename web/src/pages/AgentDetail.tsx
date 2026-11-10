@@ -1,10 +1,13 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate, useParams } from "react-router-dom";
 import { Pause, Play, Rocket, Save, Trash2 } from "lucide-react";
-import { useAction, useAgent, useAgentCommands, useAgentGraph, useAgentConfigs, useRuns } from "../api/hooks";
-import { api } from "../api/client";
+import { useAction, useAgent, useAgentCommands, useAgentGraph, useAgentConfigs, useRunsPage } from "../api/hooks";
+import { api, shrinkImage, uploadAgentImage } from "../api/client";
 import type { Agent, Run } from "../api/types";
 import { Link } from "react-router-dom";
+import { AgentAvatar } from "../components/AgentAvatar";
+import { Pager, useCursorPager } from "../components/Pager";
 import { AccessModes } from "../components/AccessModes";
 import { GraphView } from "../components/GraphView";
 import { RunsTable } from "../components/RunsTable";
@@ -148,11 +151,54 @@ function AccessTab({ agent }: { agent: Agent }) {
   );
 }
 
+const RUNS_TAB_PAGE = 25;
+
+/** Avatar that operators can click to upload a new picture (admins and operators only). */
+function AvatarEditor({ agent }: { agent: Agent }) {
+  const qc = useQueryClient();
+  const input = useRef<HTMLInputElement>(null);
+  const [err, setErr] = useState("");
+  const canEdit = useCan("operator");
+  const upload = useMutation({
+    mutationFn: async (file: File) => uploadAgentImage(agent.id, await shrinkImage(file)),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["agents"] }),
+    onError: (e) => setErr(e instanceof Error ? e.message : "Upload failed"),
+  });
+  const remove = useAction(() => api(`/api/v1/agents/${agent.id}/image`, { method: "DELETE" }));
+  return (
+    <span className="relative inline-flex items-center gap-2 text-sm font-normal">
+      <AgentAvatar agent={agent} className="h-12 w-12" />
+      {canEdit && (
+        <>
+          <input
+            ref={input}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/gif"
+            hidden
+            aria-label="Upload agent picture"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) { setErr(""); upload.mutate(f); }
+            }}
+          />
+          <button type="button" className="text-xs text-brand-300 hover:underline" onClick={() => input.current?.click()} disabled={upload.isPending}>
+            {upload.isPending ? "Uploading…" : agent.image_updated_at ? "Change" : "Add picture"}
+          </button>
+          {agent.image_updated_at && <button type="button" className="text-xs text-ink-400 hover:underline" onClick={() => remove.mutate(undefined)}>Remove</button>}
+        </>
+      )}
+      {err && <span role="alert" className="text-xs text-red-400">{err}</span>}
+    </span>
+  );
+}
+
 export function AgentDetailPage() {
   const { id = "" } = useParams();
   const nav = useNavigate();
   const { data, isLoading, error } = useAgent(id);
-  const runs = useRuns({ agent_id: id, limit: 50 });
+  const pager = useCursorPager();
+  const runs = useRunsPage({ agent_id: id, limit: RUNS_TAB_PAGE, before: pager.cursor });
   const commands = useAgentCommands(id);
   const [tab, setTab] = useState<Tab>("graph");
   const [runOpen, setRunOpen] = useState(false);
@@ -167,7 +213,7 @@ export function AgentDetailPage() {
   return (
     <>
       <PageHeader
-        title={<span className="flex items-center gap-3">{a.name}<StatusBadge kind="agent" status={a.status} /></span>}
+        title={<span className="flex items-center gap-3"><AvatarEditor agent={a} />{a.name}<StatusBadge kind="agent" status={a.status} /></span>}
         subtitle={`${a.framework}${a.version ? ` v${a.version}` : ""} · ${a.instances} instance(s) · SDK ${a.sdk_version || "?"} · heartbeat ${timeAgo(a.last_heartbeat)}`}
         actions={
           <Can role="operator">
@@ -196,7 +242,7 @@ export function AgentDetailPage() {
         tabs={[
           { id: "graph", label: "Graph" },
           { id: "access", label: `Access${a.accesses.length ? ` (${a.accesses.length})` : ""}` },
-          { id: "runs", label: `Runs${runs.data ? ` (${runs.data.length})` : ""}` },
+          { id: "runs", label: "Runs" },
           { id: "config", label: "Configuration" },
           { id: "commands", label: "Commands" },
         ]}
@@ -207,7 +253,12 @@ export function AgentDetailPage() {
         </div>
       )}
       {tab === "access" && <AccessTab agent={a} />}
-      {tab === "runs" && <div className="card overflow-hidden"><RunsTable runs={runs.data} showAgent={false} /></div>}
+      {tab === "runs" && (
+        <>
+          <div className="card overflow-hidden"><RunsTable runs={runs.data?.runs} showAgent={false} /></div>
+          <Pager page={pager.page} pageSize={RUNS_TAB_PAGE} shown={runs.data?.runs.length ?? 0} nextCursor={runs.data?.next_before} onNext={pager.next} onPrev={pager.prev} busy={runs.isFetching} noun="runs" />
+        </>
+      )}
       {tab === "config" && <ConfigTab agentId={id} current={data.config?.config} />}
       {tab === "commands" && (
         <div className="card overflow-x-auto">

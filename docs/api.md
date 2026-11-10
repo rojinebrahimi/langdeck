@@ -22,6 +22,9 @@ keys can only use the agent API.
 | POST | `/agents/{id}/pause` | operator | Pause: the agent refuses new runs |
 | POST | `/agents/{id}/resume` | operator | Resume |
 | POST | `/agents/{id}/configs` | operator | New config version: `{"config": {...}, "comment": "..."}` |
+| GET | `/agents/{id}/image` | viewer | The agent's picture (404 if none). `image_updated_at` on the agent says whether one exists |
+| PUT | `/agents/{id}/image` | operator | Upload a picture as the raw request body: PNG, JPEG, WebP or GIF, max 512 KB (type is sniffed, SVG refused) |
+| DELETE | `/agents/{id}/image` | operator | Remove the picture |
 | DELETE | `/agents/{id}` | admin | Delete an agent and all its data |
 | GET | `/runs?agent_id=&status=&thread_id=&before=&limit=` | viewer | List runs, newest first; paginate with `next_before` |
 | GET | `/runs/{id}` | viewer | Run with input and output |

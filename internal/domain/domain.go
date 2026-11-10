@@ -126,14 +126,16 @@ type Agent struct {
 	// Accesses are the resources the agent says it touches, and how. Self-reported by the SDK.
 	Accesses []Access `json:"accesses"`
 	// DependsOn lists the other agents this one calls or hands off to. Self-reported by the SDK.
-	DependsOn     []string     `json:"depends_on"`
-	DesiredState  DesiredState `json:"desired_state"`
-	Status        AgentStatus  `json:"status"`
-	Instances     int          `json:"instances"`
-	SDKVersion    string       `json:"sdk_version"`
-	LastHeartbeat *time.Time   `json:"last_heartbeat,omitempty"`
-	CreatedAt     time.Time    `json:"created_at"`
-	UpdatedAt     time.Time    `json:"updated_at"`
+	DependsOn []string `json:"depends_on"`
+	// ImageUpdatedAt is set when the agent has an uploaded image; the image itself is served separately.
+	ImageUpdatedAt *time.Time   `json:"image_updated_at,omitempty"`
+	DesiredState   DesiredState `json:"desired_state"`
+	Status         AgentStatus  `json:"status"`
+	Instances      int          `json:"instances"`
+	SDKVersion     string       `json:"sdk_version"`
+	LastHeartbeat  *time.Time   `json:"last_heartbeat,omitempty"`
+	CreatedAt      time.Time    `json:"created_at"`
+	UpdatedAt      time.Time    `json:"updated_at"`
 }
 
 // AccessMode is one kind of access an agent has to a resource.

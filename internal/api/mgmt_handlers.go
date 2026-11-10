@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 	"strings"
@@ -19,12 +20,23 @@ import (
 
 // ---- dashboard ----
 
+// statsTTL is how long a computed Stats is reused. Every open dashboard refetches on each
+// run event; without this, N viewers cost N full aggregations per event burst.
+const statsTTL = 5 * time.Second
+
 func (a *API) stats(w http.ResponseWriter, r *http.Request) {
+	a.statsMu.Lock()
+	defer a.statsMu.Unlock() // also collapses concurrent requests into one computation
+	if a.statsCache != nil && a.Now().Sub(a.statsAt) < statsTTL {
+		writeJSON(w, 200, a.statsCache)
+		return
+	}
 	st, err := a.Store.Stats(r.Context(), a.Now())
 	if err != nil {
 		a.fail(w, r, err)
 		return
 	}
+	a.statsCache, a.statsAt = st, a.Now()
 	writeJSON(w, 200, st)
 }
 
@@ -191,6 +203,67 @@ func (a *API) deleteAgent(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.audit(r, "agent.delete", "agent", ag.ID, map[string]string{"name": ag.Name})
+	a.publish(r, events.Event{Kind: events.AgentUpdated, AgentID: ag.ID})
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// ---- agent image ----
+
+// maxAgentImage caps an uploaded picture. The UI downsizes before uploading, so this is generous.
+const maxAgentImage = 512 << 10
+
+// imageTypes are the formats accepted, by sniffed content type. SVG is excluded on purpose:
+// it can carry script.
+var imageTypes = map[string]bool{"image/png": true, "image/jpeg": true, "image/webp": true, "image/gif": true}
+
+func (a *API) getAgentImage(w http.ResponseWriter, r *http.Request) {
+	ct, data, err := a.Store.AgentImage(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	w.Header().Set("Content-Type", ct)
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
+	w.Header().Set("Cache-Control", "private, max-age=3600")
+	_, _ = w.Write(data)
+}
+
+func (a *API) putAgentImage(w http.ResponseWriter, r *http.Request) {
+	ag, ok := a.loadAgent(w, r)
+	if !ok {
+		return
+	}
+	data, err := io.ReadAll(http.MaxBytesReader(w, r.Body, maxAgentImage))
+	if err != nil {
+		writeError(w, http.StatusRequestEntityTooLarge, "image too large (max 512 KB)")
+		return
+	}
+	ct := http.DetectContentType(data)
+	if !imageTypes[ct] {
+		writeError(w, http.StatusUnsupportedMediaType, "image must be PNG, JPEG, WebP or GIF")
+		return
+	}
+	if err := a.Store.SetAgentImage(r.Context(), ag.ID, ct, data, a.Now()); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	a.audit(r, "agent.image.set", "agent", ag.ID, map[string]any{"bytes": len(data)})
+	a.publish(r, events.Event{Kind: events.AgentUpdated, AgentID: ag.ID})
+	updated, _ := a.Store.GetAgent(r.Context(), ag.ID)
+	writeJSON(w, http.StatusOK, updated)
+}
+
+func (a *API) deleteAgentImage(w http.ResponseWriter, r *http.Request) {
+	ag, ok := a.loadAgent(w, r)
+	if !ok {
+		return
+	}
+	if err := a.Store.DeleteAgentImage(r.Context(), ag.ID); err != nil {
+		a.fail(w, r, err)
+		return
+	}
+	a.audit(r, "agent.image.delete", "agent", ag.ID, nil)
 	a.publish(r, events.Event{Kind: events.AgentUpdated, AgentID: ag.ID})
 	w.WriteHeader(http.StatusNoContent)
 }

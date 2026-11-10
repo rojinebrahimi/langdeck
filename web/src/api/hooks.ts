@@ -107,7 +107,7 @@ export function useLiveUpdates(enabled: boolean) {
     };
     const mark = (...keys: string[]) => {
       keys.forEach((k) => pending.add(k));
-      timer ??= setTimeout(flush, 400);
+      timer ??= setTimeout(flush, 1500);
     };
     es.onopen = () => setConnected(true);
     es.onerror = () => setConnected(false);

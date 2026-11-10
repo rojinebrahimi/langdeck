@@ -23,6 +23,7 @@ type Store struct {
 	keys       map[string]*domain.APIKey
 	agents     map[string]*domain.Agent
 	configs    map[string][]domain.AgentConfig
+	images     map[string]agentImage
 	runs       map[string]*domain.Run
 	events     map[string][]domain.RunEvent
 	commands   []*domain.Command
@@ -30,6 +31,11 @@ type Store struct {
 	audit      []domain.AuditEntry
 	eventSeq   int64
 	auditSeq   int64
+}
+
+type agentImage struct {
+	contentType string
+	data        []byte
 }
 
 var _ store.Store = (*Store)(nil)
@@ -370,6 +376,44 @@ func (s *Store) SetAgentDesiredState(_ context.Context, id string, st domain.Des
 	return nil
 }
 
+func (s *Store) SetAgentImage(_ context.Context, id, contentType string, data []byte, now time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.agents[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	if s.images == nil {
+		s.images = map[string]agentImage{}
+	}
+	s.images[id] = agentImage{contentType, append([]byte(nil), data...)}
+	t := now
+	a.ImageUpdatedAt = &t
+	return nil
+}
+
+func (s *Store) AgentImage(_ context.Context, id string) (string, []byte, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	img, ok := s.images[id]
+	if !ok {
+		return "", nil, domain.ErrNotFound
+	}
+	return img.contentType, append([]byte(nil), img.data...), nil
+}
+
+func (s *Store) DeleteAgentImage(_ context.Context, id string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	a, ok := s.agents[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	delete(s.images, id)
+	a.ImageUpdatedAt = nil
+	return nil
+}
+
 func (s *Store) DeleteAgent(_ context.Context, id string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -378,6 +422,7 @@ func (s *Store) DeleteAgent(_ context.Context, id string) error {
 	}
 	delete(s.agents, id)
 	delete(s.configs, id)
+	delete(s.images, id)
 	for rid, r := range s.runs {
 		if r.AgentID == id {
 			delete(s.runs, rid)

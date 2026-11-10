@@ -38,6 +38,7 @@ export interface Agent {
   labels: Record<string, string>;
   accesses: Access[];
   depends_on: string[];
+  image_updated_at?: string;
   desired_state: "running" | "paused";
   status: AgentStatus;
   instances: number;

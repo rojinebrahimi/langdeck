@@ -1,7 +1,9 @@
 package api_test
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/rojinebrahimi/langdeck/internal/auth"
 	"net/http"
 	"net/url"
 	"strings"
@@ -87,4 +89,60 @@ func TestAgentsPagination(t *testing.T) {
 	if len(big.Agents) != 8 {
 		t.Fatalf("clamped page: %d", len(big.Agents))
 	}
+}
+
+func TestAgentImage(t *testing.T) {
+	e := newEnv(t)
+	admin := e.browser("admin@example.com")
+	agent := e.bearer(admin.newKey("bot", domain.RoleAgent, ""))
+	var reg struct {
+		Agent domain.Agent `json:"agent"`
+	}
+	agent.do("POST", "/api/v1/agent/register", map[string]any{"name": "pic"}, http.StatusOK, &reg)
+	id := reg.Agent.ID
+	if id == "" {
+		t.Skip("register response has no agent id")
+	}
+	png := []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89")
+
+	// Only real raster images are accepted; the sniffed type wins over the declared one.
+	if code := admin.raw("PUT", "/api/v1/agents/"+id+"/image", "image/png", []byte("<svg onload=alert(1)/>")); code != http.StatusUnsupportedMediaType {
+		t.Fatalf("svg/text upload = %d, want 415", code)
+	}
+	if code := admin.raw("PUT", "/api/v1/agents/"+id+"/image", "image/png", png); code != http.StatusOK {
+		t.Fatalf("png upload = %d", code)
+	}
+	var got struct {
+		Agent domain.Agent `json:"agent"`
+	}
+	admin.do("GET", "/api/v1/agents/"+id, nil, http.StatusOK, &got)
+	if got.Agent.ImageUpdatedAt == nil {
+		t.Fatal("agent should report an image")
+	}
+	if code := admin.raw("GET", "/api/v1/agents/"+id+"/image", "", nil); code != http.StatusOK {
+		t.Fatalf("get image = %d", code)
+	}
+	admin.do("DELETE", "/api/v1/agents/"+id+"/image", nil, http.StatusNoContent, nil)
+	admin.do("GET", "/api/v1/agents/"+id+"/image", nil, http.StatusNotFound, nil)
+}
+
+// raw sends a non-JSON body and returns only the status code.
+func (c *client) raw(method, path, contentType string, body []byte) int {
+	c.e.t.Helper()
+	req, err := http.NewRequest(method, c.e.srv.URL+path, bytes.NewReader(body))
+	if err != nil {
+		c.e.t.Fatal(err)
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	if c.csrf != "" {
+		req.Header.Set(auth.CSRFHeader, c.csrf)
+	}
+	resp, err := c.http.Do(req)
+	if err != nil {
+		c.e.t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode
 }

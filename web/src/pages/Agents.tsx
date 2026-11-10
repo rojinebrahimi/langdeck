@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import clsx from "clsx";
+import { AgentAvatar } from "../components/AgentAvatar";
 import { Bot, Cpu, Search, Tag } from "lucide-react";
 import { useAgentsPage } from "../api/hooks";
 import { Empty, ErrorBox, Loading, PageHeader, StatusBadge } from "../components/ui";
@@ -107,7 +108,7 @@ deck.start()`}</pre>
             <Link key={a.id} to={`/agents/${a.id}`} className="card group p-5 transition hover:border-brand-500/50 hover:shadow-lg hover:shadow-brand-900/20">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex min-w-0 items-center gap-3">
-                  <div className="rounded-xl bg-brand-500/15 p-2.5 text-brand-300 ring-1 ring-brand-400/20 group-hover:bg-brand-500/25"><Bot className="h-5 w-5" /></div>
+                  <AgentAvatar agent={a} />
                   <div className="min-w-0">
                     <div className="truncate font-semibold text-white">{a.name}</div>
                     <div className="text-xs text-ink-400">{a.framework} {a.version && `· v${a.version}`}</div>

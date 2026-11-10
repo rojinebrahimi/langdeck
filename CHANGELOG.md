@@ -5,6 +5,8 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-11-10
+
 ### Added
 - **Agent accesses and dependencies.** An agent can declare the resources it touches and how
   (`read`, `write`, `execute`, `delete`, `admin`) with `LangDeck(accesses=...)`, and the agents it
@@ -15,9 +17,19 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
   `next_after`) and returns `total`, with server-side search (`q`, name and description) and a
   `status` filter (`online`, `paused`, `offline`). The Agents page has a search box, status filter
   and Previous/Next pager, with filters kept in the URL.
+- **Agent pictures.** Operators can upload a picture for an agent (PNG, JPEG, WebP or GIF, up to
+  512 KB; the UI shrinks it first). It shows on the Agents list and the agent page. Stored in its
+  own table (migration `0004`), served with `nosniff` and a locked-down CSP; SVG is refused.
+  `PUT`/`GET`/`DELETE /api/v1/agents/{id}/image`.
+- The agent page's Runs tab pages through history instead of stopping at 50.
 - The Runs page pages through history (it previously stopped at the newest 100 runs).
 
 ### Changed
+- **Faster with many runs.** Run lists no longer read or send each run's input and output (the
+  detail view still does); `GET /api/v1/stats` is computed from a light agent query and reused for
+  5 s across viewers; the UI coalesces live updates over 1.5 s instead of 0.4 s; and migration
+  `0005` adds `(status, created_at)` and `(thread_id, created_at)` indexes so filtered run lists
+  stay index-ordered.
 - `GET /api/v1/agents` returns 24 agents by default; pass `limit` (up to 500) or follow
   `next_after` to get more.
 

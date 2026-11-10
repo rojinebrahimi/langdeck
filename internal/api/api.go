@@ -8,6 +8,7 @@ import (
 	"errors"
 	"log/slog"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -39,6 +40,10 @@ type API struct {
 	// PollInterval is how often long-polls re-check the store when no
 	// notification arrives. Tests shorten it.
 	PollInterval time.Duration
+
+	statsMu    sync.Mutex
+	statsCache *domain.Stats
+	statsAt    time.Time
 
 	loginLimiter *server.RateLimiter
 	apiLimiter   *server.RateLimiter
@@ -99,6 +104,7 @@ func (a *API) Handler(ctx context.Context) http.Handler {
 			r.Get("/agents", a.listAgents)
 			r.Get("/agent-graph", a.agentGraph)
 			r.Get("/agents/{id}", a.getAgent)
+			r.Get("/agents/{id}/image", a.getAgentImage)
 			r.Get("/agents/{id}/configs", a.listConfigs)
 			r.Get("/agents/{id}/commands", a.listCommands)
 			r.Get("/runs", a.listRuns)
@@ -108,6 +114,8 @@ func (a *API) Handler(ctx context.Context) http.Handler {
 
 			r.Group(func(r chi.Router) {
 				r.Use(a.requireRole(domain.RoleOperator))
+				r.Put("/agents/{id}/image", a.putAgentImage)
+				r.Delete("/agents/{id}/image", a.deleteAgentImage)
 				r.Post("/agents/{id}/pause", a.pauseAgent)
 				r.Post("/agents/{id}/resume", a.resumeAgent)
 				r.Post("/agents/{id}/runs", a.startRun)
