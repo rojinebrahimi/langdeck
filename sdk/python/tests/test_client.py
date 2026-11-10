@@ -1,5 +1,6 @@
 import time
 
+import httpx
 import pytest
 
 from langdeck import AgentPaused, LangDeck, RunCancelled
@@ -32,10 +33,15 @@ def test_registers_with_config(deck, server):
     assert seen == [{"model": "m1"}]
 
 
-def test_registers_accesses_and_dependencies(server):
+def test_normalize_accesses():
     from langdeck.client import normalize_accesses
 
-    assert normalize_accesses({"db:orders": ["read", "write"], "s3:r": "read", "api:x": {"modes": ["execute"], "description": "d"}}) == [
+    declared = {
+        "db:orders": ["read", "write"],
+        "s3:r": "read",
+        "api:x": {"modes": ["execute"], "description": "d"},
+    }
+    assert normalize_accesses(declared) == [
         {"resource": "db:orders", "modes": ["read", "write"]},
         {"resource": "s3:r", "modes": ["read"]},
         {"resource": "api:x", "modes": ["execute"], "description": "d"},
@@ -47,16 +53,16 @@ def test_registers_accesses_and_dependencies(server):
 
 
 def test_register_body_carries_declarations_only_when_set(server):
-    from langdeck import LangDeck
+    def make(name, **kw):
+        client = httpx.Client(base_url="http://deck.test", transport=httpx.MockTransport(server.handler))
+        return LangDeck(name, url="http://deck.test", api_key=KEY, http_client=client, **kw)
 
-    declared = LangDeck("a1", url="http://x", api_key=KEY, accesses={"db:orders": "read"}, depends_on=["billing"],
-                        http_client=httpx.Client(transport=httpx.MockTransport(server.handler)))
-    declared._register()
+    make("a1", accesses={"db:orders": "read"}, depends_on=["billing"])._register()
     assert server.registrations[-1]["accesses"] == [{"resource": "db:orders", "modes": ["read"]}]
     assert server.registrations[-1]["depends_on"] == ["billing"]
-    quiet = LangDeck("a2", url="http://x", api_key=KEY, http_client=httpx.Client(transport=httpx.MockTransport(server.handler)))
-    quiet._register()
-    assert "accesses" not in server.registrations[-1] and "depends_on" not in server.registrations[-1]
+    make("a2")._register()
+    assert "accesses" not in server.registrations[-1]
+    assert "depends_on" not in server.registrations[-1]
 
 
 class FakeGraph:
