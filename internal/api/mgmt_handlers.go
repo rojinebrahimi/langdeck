@@ -226,7 +226,9 @@ func (a *API) getAgentImage(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 	w.Header().Set("Content-Security-Policy", "default-src 'none'; sandbox")
 	w.Header().Set("Cache-Control", "private, max-age=3600")
-	_, _ = w.Write(data)
+	// Not XSS: the bytes passed a content sniff for raster images on upload, and the response is
+	// nosniff with a sandboxing CSP.
+	_, _ = w.Write(data) //nolint:gosec
 }
 
 func (a *API) putAgentImage(w http.ResponseWriter, r *http.Request) {

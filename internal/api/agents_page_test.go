@@ -3,12 +3,12 @@ package api_test
 import (
 	"bytes"
 	"fmt"
-	"github.com/rojinebrahimi/langdeck/internal/auth"
 	"net/http"
 	"net/url"
 	"strings"
 	"testing"
 
+	"github.com/rojinebrahimi/langdeck/internal/auth"
 	"github.com/rojinebrahimi/langdeck/internal/domain"
 )
 
