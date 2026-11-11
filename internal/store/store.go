@@ -94,6 +94,11 @@ type Store interface {
 	ListAgentsPage(ctx context.Context, f AgentFilter) (*AgentPage, error)
 	SetAgentDesiredState(ctx context.Context, id string, st domain.DesiredState) error
 	DeleteAgent(ctx context.Context, id string) error
+
+	// GetSetting and SetSetting hold small JSON documents keyed by name (e.g. notification
+	// channels). GetSetting returns ErrNotFound when the key was never set.
+	GetSetting(ctx context.Context, key string) (json.RawMessage, error)
+	SetSetting(ctx context.Context, key string, value json.RawMessage, now time.Time) error
 	// SetAgentImage stores (or replaces) the agent's picture; DeleteAgentImage removes it.
 	SetAgentImage(ctx context.Context, id, contentType string, data []byte, now time.Time) error
 	AgentImage(ctx context.Context, id string) (contentType string, data []byte, err error)

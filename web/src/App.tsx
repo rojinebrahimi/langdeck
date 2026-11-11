@@ -14,6 +14,7 @@ import { RunDetailPage } from "./pages/RunDetail";
 import { ApprovalsPage } from "./pages/Approvals";
 import { APIKeysPage } from "./pages/APIKeys";
 import { UsersPage } from "./pages/Users";
+import { NotificationsPage } from "./pages/Notifications";
 import { AuditPage } from "./pages/Audit";
 import { ForcedPasswordChangePage } from "./pages/ChangePassword";
 import { GuidePage } from "./pages/Guide";
@@ -43,6 +44,7 @@ export function App() {
         <Route path="/guide" element={<GuidePage />} />
         <Route path="/settings/api-keys" element={<APIKeysPage />} />
         <Route path="/settings/users" element={<UsersPage />} />
+        <Route path="/settings/notifications" element={<NotificationsPage />} />
         <Route path="/settings/audit" element={<AuditPage />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

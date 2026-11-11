@@ -25,7 +25,7 @@ func TestContract(t *testing.T) {
 			t.Fatal(err)
 		}
 		if _, err := s.Pool().Exec(ctx, `TRUNCATE users, sessions, api_keys, agents, agent_configs, runs,
-			run_events, commands, interrupts, audit_log RESTART IDENTITY CASCADE`); err != nil {
+			run_events, commands, interrupts, audit_log, settings RESTART IDENTITY CASCADE`); err != nil {
 			t.Fatal(err)
 		}
 		t.Cleanup(s.Close)

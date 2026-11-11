@@ -37,6 +37,7 @@ type chatSender struct {
 func (s *chatSender) Name() string { return s.name }
 
 func (s *chatSender) Send(ctx context.Context, e Event) error {
+	e.URL = absolute(s.publicURL, e.URL)
 	var body string
 	if s.name == "slack" {
 		body = slackText(e)

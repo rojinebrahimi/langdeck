@@ -162,6 +162,12 @@ func serve() error {
 		Store: st, Broker: broker, Cfg: cfg, Log: log, UI: web.Handler(), Notify: notifier,
 		Auth: &auth.Authenticator{Store: st, SecureCookies: cfg.SecureCookies(), Now: func() time.Time { return time.Now().UTC() }},
 	}
+	// Settings saved from the UI take precedence over the environment.
+	if ns, fromUI, err := a.NotifySettings(ctx); err != nil {
+		log.Error("could not load notification settings", "err", err)
+	} else if fromUI {
+		notifier.Reconfigure(ns.Options(notify.Options{PublicURL: cfg.PublicURL, Log: log}))
+	}
 	if cfg.AuthMode == "oidc" {
 		a.OIDC, err = auth.NewOIDC(ctx, cfg.OIDCIssuer, cfg.OIDCClientID, cfg.OIDCClientSecret, cfg.PublicURL,
 			cfg.OIDCScopes, cfg.OIDCGroupsClaim, cfg.SecureCookies())

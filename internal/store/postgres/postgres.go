@@ -395,6 +395,20 @@ func (s *Store) DeleteAgentImage(ctx context.Context, id string) error {
 	return tx.Commit(ctx)
 }
 
+func (s *Store) GetSetting(ctx context.Context, key string) (json.RawMessage, error) {
+	var v []byte
+	if err := s.pool.QueryRow(ctx, `SELECT value FROM settings WHERE key = $1`, key).Scan(&v); err != nil {
+		return nil, mapErr(err)
+	}
+	return v, nil
+}
+
+func (s *Store) SetSetting(ctx context.Context, key string, value json.RawMessage, now time.Time) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO settings (key, value, updated_at) VALUES ($1, $2, $3)
+		ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = EXCLUDED.updated_at`, key, []byte(value), now)
+	return err
+}
+
 func (s *Store) DeleteAgent(ctx context.Context, id string) error {
 	return affected(s.pool.Exec(ctx, `DELETE FROM agents WHERE id = $1`, id))
 }

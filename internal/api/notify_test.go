@@ -74,3 +74,76 @@ func next(t *testing.T, ch <-chan string) string {
 		return ""
 	}
 }
+
+// Channels can be configured from the UI: secrets are write-only, changes apply at once,
+// and only admins can touch them.
+func TestNotifySettingsFromUI(t *testing.T) {
+	texts := make(chan string, 8)
+	hook := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var m struct {
+			Text string `json:"text"`
+		}
+		_ = json.NewDecoder(r.Body).Decode(&m)
+		texts <- m.Text
+	}))
+	t.Cleanup(hook.Close)
+
+	e := newEnvNotify(t, "dev", notify.New(notify.Options{}))
+	admin := e.browser("admin@example.com")
+	agent := e.bearer(admin.newKey("bot", domain.RoleAgent, ""))
+	agent.do("POST", "/api/v1/agent/register", map[string]any{"name": "billing"}, http.StatusOK, nil)
+
+	type view struct {
+		Events   []string        `json:"events"`
+		Channels map[string]bool `json:"channels"`
+		Source   string          `json:"source"`
+	}
+	var v view
+	admin.do("GET", "/api/v1/settings/notifications", nil, http.StatusOK, &v)
+	if v.Source != "env" || v.Channels["slack"] {
+		t.Fatalf("starts unconfigured: %+v", v)
+	}
+	admin.do("POST", "/api/v1/settings/notifications/test", nil, http.StatusBadRequest, nil)
+
+	// Bad input is refused before anything is saved.
+	admin.do("PUT", "/api/v1/settings/notifications", map[string]any{"slack_url": "http://evil.example.com/x"}, http.StatusBadRequest, nil)
+	admin.do("PUT", "/api/v1/settings/notifications", map[string]any{"telegram_token": "123:abc"}, http.StatusBadRequest, nil)
+	admin.do("PUT", "/api/v1/settings/notifications", map[string]any{"events": []string{"nope"}}, http.StatusBadRequest, nil)
+
+	admin.do("PUT", "/api/v1/settings/notifications", map[string]any{"slack_url": hook.URL, "events": []string{"approval"}}, http.StatusOK, &v)
+	if v.Source != "ui" || !v.Channels["slack"] || len(v.Events) != 1 {
+		t.Fatalf("after save: %+v", v)
+	}
+	var raw map[string]any
+	admin.do("GET", "/api/v1/settings/notifications", nil, http.StatusOK, &raw)
+	if b, _ := json.Marshal(raw); strings.Contains(string(b), hook.URL) {
+		t.Fatal("the webhook URL must never be returned")
+	}
+
+	// The test button reaches the channel; a real approval does too, without a restart.
+	var tr struct {
+		Results []notify.TestResult `json:"results"`
+	}
+	admin.do("POST", "/api/v1/settings/notifications/test", nil, http.StatusOK, &tr)
+	if len(tr.Results) != 1 || !tr.Results[0].OK {
+		t.Fatalf("test results: %+v", tr)
+	}
+	if got := next(t, texts); !strings.Contains(got, "test notification") {
+		t.Fatalf("test message: %s", got)
+	}
+	agent.do("POST", "/api/v1/agent/interrupts", map[string]any{"agent": "billing", "id": "i1", "run_id": "r1",
+		"node": "n", "question": "Refund?"}, http.StatusCreated, nil)
+	if got := next(t, texts); !strings.Contains(got, "Refund?") {
+		t.Fatalf("approval message: %s", got)
+	}
+
+	// Operators cannot read or change settings.
+	op := e.bearer(admin.newKey("op", domain.RoleOperator, ""))
+	op.do("GET", "/api/v1/settings/notifications", nil, http.StatusForbidden, nil)
+	op.do("PUT", "/api/v1/settings/notifications", map[string]any{"clear": []string{"slack"}}, http.StatusForbidden, nil)
+
+	admin.do("PUT", "/api/v1/settings/notifications", map[string]any{"clear": []string{"slack"}}, http.StatusOK, &v)
+	if v.Channels["slack"] {
+		t.Fatal("slack should be cleared")
+	}
+}

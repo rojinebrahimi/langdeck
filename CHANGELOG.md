@@ -5,6 +5,21 @@ All notable changes follow [Keep a Changelog](https://keepachangelog.com/) and
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-11-11
+
+### Added
+- **Notifications settings page.** Admins connect Slack, Mattermost, Microsoft Teams and Telegram
+  from the UI (sidebar, *Notifications*), pick the events, and send a test message that reports
+  per-channel success. Changes apply immediately. Webhook URLs and tokens are write-only, never
+  returned by the API, stored in the new `settings` table (migration `0006`) and audited by channel
+  name only. `GET`/`PUT /api/v1/settings/notifications`, `POST …/test` (admin). Settings saved in
+  the UI take precedence over `LANGDECK_NOTIFY_*`.
+
+### Fixed
+- With two or more channels configured, each event reached only one of them (all channels shared
+  one queue). Every channel now has its own queue and worker, so a slow Teams webhook no longer
+  delays Slack.
+
 ## [0.2.1] - 2026-11-10
 
 ### Fixed

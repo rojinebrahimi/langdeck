@@ -41,7 +41,7 @@ func (j *Runner) Run(ctx context.Context) {
 	t := time.NewTicker(j.Interval)
 	defer t.Stop()
 	var agents *time.Ticker
-	if j.Notify.Enabled() {
+	if j.Notify != nil { // channels can be added from the UI at any time
 		interval := j.AgentInterval
 		if interval == 0 {
 			interval = 30 * time.Second

@@ -222,8 +222,9 @@ is append-only and paginated. Administrators can export it with the API
 
 LangDeck can tell a channel when something needs a human, so nobody has to watch the
 Approvals inbox. Configure any combination of Slack, Mattermost, Microsoft Teams and Telegram
-(see [configuration](configuration.md#chat-notifications)); with nothing configured, the feature
-is off.
+from **Notifications** in the sidebar (admins), where you can also pick the events and press
+*Send test message*, or with environment variables (see
+[configuration](configuration.md#chat-notifications)). With nothing configured, the feature is off.
 
 | Event | Sent when | Default |
 |---|---|:--:|

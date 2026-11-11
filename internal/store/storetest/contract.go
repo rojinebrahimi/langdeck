@@ -22,6 +22,7 @@ func Run(t *testing.T, newStore func(t *testing.T) store.Store) {
 	t.Run("agents", func(t *testing.T) { testAgents(t, newStore(t)) })
 	t.Run("agent_pages", func(t *testing.T) { testAgentPages(t, newStore(t)) })
 	t.Run("agent_image", func(t *testing.T) { testAgentImage(t, newStore(t)) })
+	t.Run("settings", func(t *testing.T) { testSettings(t, newStore(t)) })
 	t.Run("configs", func(t *testing.T) { testConfigs(t, newStore(t)) })
 	t.Run("runs_and_events", func(t *testing.T) { testRuns(t, newStore(t)) })
 	t.Run("commands", func(t *testing.T) { testCommands(t, newStore(t)) })
@@ -430,5 +431,24 @@ func testAgentImage(t *testing.T, s store.Store) {
 	}
 	if err := s.SetAgentImage(ctx, "00000000-0000-0000-0000-000000000000", "image/png", []byte{1}, now()); !errors.Is(err, domain.ErrNotFound) {
 		t.Fatalf("unknown agent: %v", err)
+	}
+}
+
+func testSettings(t *testing.T, s store.Store) {
+	ctx := context.Background()
+	if _, err := s.GetSetting(ctx, "notifications"); !errors.Is(err, domain.ErrNotFound) {
+		t.Fatalf("unset key: %v", err)
+	}
+	must(t, s.SetSetting(ctx, "notifications", []byte(`{"events":["approval"]}`), now()))
+	must(t, s.SetSetting(ctx, "notifications", []byte(`{"events":["run_failed"],"slack_url":"https://x"}`), now())) // upsert
+	raw, err := s.GetSetting(ctx, "notifications")
+	must(t, err)
+	var got struct {
+		Events   []string `json:"events"`
+		SlackURL string   `json:"slack_url"`
+	}
+	must(t, json.Unmarshal(raw, &got))
+	if len(got.Events) != 1 || got.Events[0] != "run_failed" || got.SlackURL != "https://x" {
+		t.Fatalf("got %s", raw)
 	}
 }

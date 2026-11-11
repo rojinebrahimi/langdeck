@@ -3,6 +3,7 @@ package notify
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -169,8 +170,8 @@ func TestDisabledAndFiltered(t *testing.T) {
 	}
 	// Publishing an unsubscribed kind must not queue anything.
 	d.Publish(event())
-	if len(d.queue) != 0 {
-		t.Fatalf("filtered event was queued: %d", len(d.queue))
+	if len(d.lanes[0].queue) != 0 {
+		t.Fatalf("filtered event was queued: %d", len(d.lanes[0].queue))
 	}
 }
 
@@ -218,4 +219,65 @@ func waitFor(t *testing.T, cond func() bool) {
 		time.Sleep(10 * time.Millisecond)
 	}
 	t.Fatal("condition not met in time")
+}
+
+// Every event reaches every channel, and Reconfigure swaps channels at runtime.
+func TestFanOutAndReconfigure(t *testing.T) {
+	hit := func() (*httptest.Server, chan struct{}) {
+		ch := make(chan struct{}, 8)
+		return httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { ch <- struct{}{} })), ch
+	}
+	a, aHit := hit()
+	b, bHit := hit()
+	c, cHit := hit()
+	t.Cleanup(a.Close)
+	t.Cleanup(b.Close)
+	t.Cleanup(c.Close)
+
+	d := New(Options{SlackURL: a.URL, TeamsURL: b.URL})
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	go d.Run(ctx)
+	time.Sleep(50 * time.Millisecond)
+
+	d.Publish(event())
+	for name, ch := range map[string]chan struct{}{"slack": aHit, "teams": bHit} {
+		select {
+		case <-ch:
+		case <-time.After(3 * time.Second):
+			t.Fatalf("%s never received the event", name)
+		}
+	}
+
+	d.Reconfigure(Options{MattermostURL: c.URL})
+	d.Publish(event())
+	select {
+	case <-cHit:
+	case <-time.After(3 * time.Second):
+		t.Fatal("new channel never received the event")
+	}
+	select {
+	case <-aHit:
+		t.Fatal("removed channel still receives events")
+	case <-time.After(200 * time.Millisecond):
+	}
+}
+
+// Links use the public URL given at Reconfigure, not only the one from New.
+func TestReconfigureKeepsLinksAbsolute(t *testing.T) {
+	got := make(chan string, 1)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		got <- string(b)
+	}))
+	t.Cleanup(srv.Close)
+	d := New(Options{})
+	d.Reconfigure(Options{SlackURL: srv.URL, PublicURL: "https://deck.example.com"})
+	res := d.SendTest(context.Background(), Event{Kind: "test", Title: "t", URL: "/runs/1"})
+	if len(res) != 1 || !res[0].OK {
+		t.Fatalf("%+v", res)
+	}
+	if body := <-got; !strings.Contains(body, "https://deck.example.com/runs/1") {
+		t.Fatalf("link not absolute: %s", body)
+	}
 }

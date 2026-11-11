@@ -37,6 +37,9 @@ keys can only use the agent API.
 | GET | `/users` | admin | List users |
 | PATCH | `/users/{id}` | admin | `{"role": "operator"}` |
 | GET | `/audit?limit=&before=` | admin | Audit log, newest first |
+| GET | `/settings/notifications` | admin | Notification settings: events and which channels are set. Never returns URLs or tokens |
+| PUT | `/settings/notifications` | admin | Save: `slack_url`, `mattermost_url`, `teams_url`, `telegram_token` + `telegram_chat_id`, `events`, `clear: ["slack", …]`. Blank fields keep the stored value |
+| POST | `/settings/notifications/test` | admin | Send a test message to every channel now; returns per-channel `ok` / `error` |
 
 ## Agent API (used by the SDK)
 

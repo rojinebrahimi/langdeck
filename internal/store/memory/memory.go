@@ -24,6 +24,7 @@ type Store struct {
 	agents     map[string]*domain.Agent
 	configs    map[string][]domain.AgentConfig
 	images     map[string]agentImage
+	settings   map[string]json.RawMessage
 	runs       map[string]*domain.Run
 	events     map[string][]domain.RunEvent
 	commands   []*domain.Command
@@ -411,6 +412,26 @@ func (s *Store) DeleteAgentImage(_ context.Context, id string) error {
 	}
 	delete(s.images, id)
 	a.ImageUpdatedAt = nil
+	return nil
+}
+
+func (s *Store) GetSetting(_ context.Context, key string) (json.RawMessage, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	v, ok := s.settings[key]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return append(json.RawMessage(nil), v...), nil
+}
+
+func (s *Store) SetSetting(_ context.Context, key string, value json.RawMessage, _ time.Time) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.settings == nil {
+		s.settings = map[string]json.RawMessage{}
+	}
+	s.settings[key] = append(json.RawMessage(nil), value...)
 	return nil
 }
 

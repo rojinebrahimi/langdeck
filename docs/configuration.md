@@ -43,6 +43,15 @@ startup with a message listing every problem.
 
 Optional. With no endpoint set, notifications are off and cost nothing.
 
+**From the UI:** admins can connect Slack, Mattermost, Microsoft Teams and Telegram under
+**Notifications** in the sidebar, choose which events to send, and press *Send test message* to see
+which channel delivers. Changes apply immediately, with no restart. Webhook URLs and tokens are
+write-only: they are stored in the database (use a database with encryption at rest and restricted
+access) and never returned by the API. Once you save from the UI, the saved settings take
+precedence over the environment variables below. Webhook URLs must use https.
+
+**From the environment** (GitOps, Helm): the variables below set the initial channels.
+
 | Variable | Default | Description |
 |---|---|---|
 | `LANGDECK_NOTIFY_EVENTS` | `approval,run_failed,agent_offline` | Comma-separated events to send: `approval`, `run_failed`, `agent_offline`, `agent_online`. |

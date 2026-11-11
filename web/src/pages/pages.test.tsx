@@ -6,6 +6,7 @@ import { ApprovalsPage } from "./Approvals";
 import { APIKeysPage } from "./APIKeys";
 import { ChangePasswordForm } from "./ChangePassword";
 import { AgentsPage } from "./Agents";
+import { NotificationsPage } from "./Notifications";
 import { GuidePage } from "./Guide";
 import { DependenciesPage } from "./Dependencies";
 import { AgentDetailPage } from "./AgentDetail";
@@ -248,5 +249,26 @@ describe("AgentDetailPage access tab", () => {
     await userEvent.click(await screen.findByRole("tab", { name: /^Access/ }));
     expect(screen.getByText(/has not declared any accesses/)).toBeInTheDocument();
     expect(screen.getByText("Calls no other agents.")).toBeInTheDocument();
+  });
+});
+
+describe("NotificationsPage", () => {
+  const view = { events: ["approval"], available_events: ["approval", "run_failed", "agent_offline", "agent_online"],
+    channels: { slack: false, mattermost: false, teams: false, telegram: false }, telegram_chat_id: "", source: "env" };
+
+  it("saves a webhook without ever showing a stored secret", async () => {
+    const calls = mockApi([
+      me(),
+      { method: "GET", match: /\/api\/v1\/settings\/notifications$/, body: view },
+      { method: "PUT", match: /\/api\/v1\/settings\/notifications$/, body: { ...view, source: "ui", channels: { ...view.channels, slack: true } } },
+    ]);
+    setCsrfToken("csrf-1");
+    renderPage(<NotificationsPage />);
+    await userEvent.type(await screen.findByLabelText("Webhook URL", { selector: "#ch-slack" }), "https://hooks.slack.com/services/T/B/x");
+    await userEvent.click(screen.getByRole("button", { name: /save changes/i }));
+    await waitFor(() => expect(calls.some((c) => c.method === "PUT")).toBe(true));
+    expect(calls.find((c) => c.method === "PUT")!.body).toEqual({ slack_url: "https://hooks.slack.com/services/T/B/x" });
+    expect(await screen.findByText("Connected")).toBeInTheDocument();
+    expect(screen.queryByDisplayValue(/hooks\.slack\.com/)).not.toBeInTheDocument();
   });
 });
